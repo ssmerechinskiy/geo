@@ -5,13 +5,15 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.annotation.RequiresPermission;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -28,6 +30,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import static android.content.Context.CONNECTIVITY_SERVICE;
 
 /**
  * Created by user on 30.07.2017.
@@ -126,12 +130,20 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
     }
 
-    private void notifyEnter(GeofenceModel m) {
-
+    private void notifyOnEvent(GeofenceModel m) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onEvent(m);
+            }
+        }
     }
 
-    private void notifyExit(GeofenceModel m) {
-
+    private void notifyOnMessage(GeofenceModel m, String message) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onMessage(message);
+            }
+        }
     }
 
     @Override
@@ -157,19 +169,22 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         GeofenceModel gm = pendingGeofences.get(geofence.getRequestId());
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
-                notifyEnter(gm);
+                notifyOnEvent(gm);
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
                 String wifiNetwork = gm.getWifiNetwork();
-                // TODO: 30.07.2017 if wifi is exists then do not notif about event and just send message 
+                if(isConnectedToWifi(wifiNetwork)) {
+                    notifyOnMessage(gm, "exit but wifi connected");
+                } else {
+                    notifyOnEvent(gm);
+                }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
+                notifyOnMessage(gm, "you are inside geofence");
                 break;
             default:
                 break;
         }
-
-
     }
 
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
@@ -197,5 +212,25 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
+    private boolean isConnectedToWifi(String wifiNetwork) {
+        try {
+            if (context != null) {
+                ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(CONNECTIVITY_SERVICE);
+                NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
+                if(networkInfo.isConnected()) {
+                    final WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+                    final WifiInfo connectionInfo = wifiManager.getConnectionInfo();
+                    if (connectionInfo != null && !(connectionInfo.getSSID().equals("")) && wifiNetwork.equals(connectionInfo.getSSID())) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "isConnectedToInternet:" + e.getMessage());
+            return false;
+        }
+    }
 
 }
