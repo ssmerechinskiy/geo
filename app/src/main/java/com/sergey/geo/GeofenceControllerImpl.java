@@ -1,5 +1,6 @@
 package com.sergey.geo;
 
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -7,11 +8,18 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresPermission;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
+import com.google.android.gms.location.Geofence;
+import com.google.android.gms.location.GeofencingEvent;
+import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
 
 import java.util.ArrayList;
@@ -57,6 +65,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private synchronized void addGeofenceInternal(GeofenceModel geofenceModel) {
         if(mGoogleApiClient == null || !mGoogleApiClient.isConnected()) {
+            Log.d(TAG, "addGeofenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
                     .addApi(LocationServices.API)
                     .addConnectionCallbacks(GeofenceControllerImpl.this)
@@ -64,20 +73,33 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                     .build();
             pendingGeofences.put(geofenceModel.getId(), geofenceModel);
             mGoogleApiClient.connect();
-            // TODO: 30.07.2017 then waiting for connection
         } else {
+            Log.d(TAG, "addGeofenceInternal:send to service");
+            pendingGeofences.put(geofenceModel.getId(), geofenceModel);
             addGeofenceToService(geofenceModel);
         }
     }
 
     private void addGeofenceToService(GeofenceModel geofence) {
-
+        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
+        builder.setInitialTrigger(geofence.getTransitionType() == Geofence.GEOFENCE_TRANSITION_ENTER
+                ? GeofencingRequest.INITIAL_TRIGGER_ENTER : GeofencingRequest.INITIAL_TRIGGER_EXIT);
+        builder.addGeofence(geofence.newGeofence());
+        GeofencingRequest build = builder.build();
+        try {
+            LocationServices.GeofencingApi.addGeofences(mGoogleApiClient, build, getPendingIntent())
+                    .setResultCallback(addGeofenceCallback);
+        } catch (SecurityException e) {
+            Log.e(TAG, "call location service Error:" + e.getMessage());
+        }
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        // TODO: 30.07.2017 convert map objects and create as list
-        addGeofenceToService(new GeofenceModel());
+        Log.e(TAG, "onConnected");
+        for (GeofenceModel m : pendingGeofences.values()) {
+            addGeofenceToService(m);
+        }
     }
 
     @Override
@@ -104,9 +126,62 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
     }
 
+    private void notifyEnter(GeofenceModel m) {
+
+    }
+
+    private void notifyExit(GeofenceModel m) {
+
+    }
+
+    @Override
+    public void onGeofenceEvent(final Intent intent) {
+        resultExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
+                if (geofencingEvent.hasError()) {
+                    Log.e(TAG, "Location Services error: " + geofencingEvent.getErrorCode());
+                    return;
+                }
+                int transitionType = geofencingEvent.getGeofenceTransition();
+                List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
+                for (Geofence geofence : triggeredGeofences) {
+                    handleResult(geofence);
+                }
+            }
+        });
+    }
+
+    private void handleResult(Geofence geofence) {
+        GeofenceModel gm = pendingGeofences.get(geofence.getRequestId());
+        switch (gm.getTransitionType()) {
+            case Geofence.GEOFENCE_TRANSITION_ENTER:
+                notifyEnter(gm);
+                break;
+            case Geofence.GEOFENCE_TRANSITION_EXIT:
+                String wifiNetwork = gm.getWifiNetwork();
+                // TODO: 30.07.2017 if wifi is exists then do not notif about event and just send message 
+                break;
+            case Geofence.GEOFENCE_TRANSITION_DWELL:
+                break;
+            default:
+                break;
+        }
+
+
+    }
+
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+
+        }
+    };
+
+    private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
+        @Override
+        public void onResult(@NonNull Status status) {
 
         }
     };
@@ -115,6 +190,11 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     public void onDestroy() {
         LocalBroadcastManager.getInstance(context).unregisterReceiver(networkStateReceiver);
         context = null;
+    }
+
+    private PendingIntent getPendingIntent() {
+        Intent i = new Intent(GeoApp.getInstance(), GeofenceEventReceiver.class);
+        return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
 
