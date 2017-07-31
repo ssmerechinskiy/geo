@@ -10,9 +10,12 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -47,14 +50,19 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private List<GeofenceEventListener> listeners = new ArrayList<>();
     private GoogleApiClient mGoogleApiClient;
 
+    private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
+
     private ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
     private ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
     private Map<String, GeofenceModel> pendingGeofences = new ConcurrentHashMap<>();
 
+    private NetworkType currentNetworkType;
+
     public GeofenceControllerImpl(Context c) {
         context = c;
         LocalBroadcastManager.getInstance(context).registerReceiver(networkStateReceiver, intentFilter);
+        currentNetworkType = NetworkUtil.updateNetworkInfo();
     }
 
     @Override
@@ -68,19 +76,21 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     private synchronized void addGeofenceInternal(GeofenceModel geofenceModel) {
-        if(mGoogleApiClient == null || !mGoogleApiClient.isConnected()) {
+        pendingGeofences.put(geofenceModel.getId(), geofenceModel);
+        if(mGoogleApiClient == null) {
             Log.d(TAG, "addGeofenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
                     .addApi(LocationServices.API)
                     .addConnectionCallbacks(GeofenceControllerImpl.this)
                     .addOnConnectionFailedListener(GeofenceControllerImpl.this)
                     .build();
-            pendingGeofences.put(geofenceModel.getId(), geofenceModel);
-            mGoogleApiClient.connect();
-        } else {
-            Log.d(TAG, "addGeofenceInternal:send to service");
-            pendingGeofences.put(geofenceModel.getId(), geofenceModel);
+        }
+        if(mGoogleApiClient.isConnected()) {
             addGeofenceToService(geofenceModel);
+        } else {
+            if(!mGoogleApiClient.isConnecting()) {
+                mGoogleApiClient.connect();
+            }
         }
     }
 
@@ -173,7 +183,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
                 String wifiNetwork = gm.getWifiNetwork();
-                if(isConnectedToWifi(wifiNetwork)) {
+                if(!TextUtils.isEmpty(wifiNetwork) && currentNetworkType == NetworkType.WIFI && currentNetworkType.getName().equals(wifiNetwork)) {
                     notifyOnMessage(gm, "exit but wifi connected");
                 } else {
                     notifyOnEvent(gm);
@@ -190,14 +200,14 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-
+            currentNetworkType = NetworkUtil.updateNetworkInfo();
         }
     };
 
     private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
         @Override
         public void onResult(@NonNull Status status) {
-
+            // TODO: 31.07.2017 there we should to disconnect if we have no pending geofenes?
         }
     };
 
@@ -205,6 +215,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     public void onDestroy() {
         LocalBroadcastManager.getInstance(context).unregisterReceiver(networkStateReceiver);
         context = null;
+        mainThreadHandler.removeCallbacksAndMessages(null);
     }
 
     private PendingIntent getPendingIntent() {
@@ -212,25 +223,8 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    private boolean isConnectedToWifi(String wifiNetwork) {
-        try {
-            if (context != null) {
-                ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(CONNECTIVITY_SERVICE);
-                NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-                if(networkInfo.isConnected()) {
-                    final WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-                    final WifiInfo connectionInfo = wifiManager.getConnectionInfo();
-                    if (connectionInfo != null && !(connectionInfo.getSSID().equals("")) && wifiNetwork.equals(connectionInfo.getSSID())) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            return false;
-        } catch (Exception e) {
-            Log.e(TAG, "isConnectedToInternet:" + e.getMessage());
-            return false;
-        }
+    public NetworkType getCurrentNetworkType() {
+        return currentNetworkType;
     }
 
 }
