@@ -180,6 +180,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
                 notifyOnEvent(gm);
+                pendingGeofences.remove(gm.getId());
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
                 String wifiNetwork = gm.getWifiNetwork();
@@ -187,6 +188,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                     notifyOnMessage(gm, "exit but wifi connected");
                 } else {
                     notifyOnEvent(gm);
+                    pendingGeofences.remove(gm.getId());
                 }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
@@ -207,7 +209,9 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
         @Override
         public void onResult(@NonNull Status status) {
-            // TODO: 31.07.2017 there we should to disconnect if we have no pending geofenes?
+            if(pendingGeofences.keySet().size() == 0) {
+                mGoogleApiClient.disconnect();
+            }
         }
     };
 
