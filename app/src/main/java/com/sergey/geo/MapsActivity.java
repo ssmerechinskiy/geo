@@ -3,14 +3,22 @@ package com.sergey.geo;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Point;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Display;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.PopupWindow;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
@@ -24,45 +32,49 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener, GoogleMap.OnCameraMoveListener {
     private final static String TAG = MapsActivity.class.getSimpleName();
 
     private GoogleMap mMap;
-    private LocationManager locationManager;
-    private String mprovider;
+    private MapPresenter presenter;
 
-    private Location currentLocation = null;
-    private Marker currentLocationMarker = null;
+    private View contentView;
 
-    private boolean permissionsGranted = false;
+    private PopupWindow mPopupWindow;
+    private int mPoupMenuWidth;
+    private int mPopupMenuHeight;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        contentView = findViewById(android.R.id.content);
+        presenter = new MapPresenter(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         Log.d(TAG, "onStart");
-        updateCurrentLocation();
+        presenter.onStart();
+    }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG, "onStop");
+        presenter.onStop();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if(locationManager != null) {
-            locationManager.removeUpdates(locationListener);
-        }
+        Log.d(TAG, "onDestroy");
+        presenter.onDestroy();
     }
-
 
     /**
      * Manipulates the map once available.
@@ -77,77 +89,121 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         Log.d(TAG, "onMapReady");
         mMap = googleMap;
+        presenter.onMapReady(googleMap);
         mMap.setOnMapLongClickListener(this);
-        displayCurrentLocation();
+        mMap.setOnMarkerClickListener(this);
+        mMap.setOnCameraMoveListener(this);
     }
 
-    private void displayCurrentLocation() {
-        if (currentLocation != null)
-            locationListener.onLocationChanged(currentLocation);
-        else
-            Toast.makeText(getBaseContext(), "No Location Provider Found Check Your Code", Toast.LENGTH_SHORT).show();
+    /**---------------------------------------------------------------*/
+    public Marker displayMarker(Location location, String title, boolean showInfo) {
+        LatLng point = new LatLng(location.getLatitude(), location.getLongitude());
+        MarkerOptions markerOptions = new MarkerOptions();
+        markerOptions.position(point);
+        markerOptions.title(title);
+        Marker marker = mMap.addMarker(markerOptions);
+        marker.setSnippet("id:" + marker.getId());
+        if(showInfo) marker.showInfoWindow();
+        return marker;
     }
 
-    private void updateCurrentLocation() {
-        Criteria criteria = new Criteria();
-        mprovider = locationManager.getBestProvider(criteria, false);
-        if (mprovider != null && !mprovider.equals("")) {
-            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                return;
+    public void removeMarker(Marker marker) {
+        marker.remove();
+    }
+
+    public Circle displayCircle(Location location, double radius) {
+        CircleOptions circleOptions = new CircleOptions();
+        circleOptions.center(new LatLng(location.getLatitude(), location.getLongitude()));
+        circleOptions.radius(radius);
+        circleOptions.fillColor(0x40ff0000);
+        circleOptions.strokeColor(Color.TRANSPARENT);
+        circleOptions.strokeWidth(2);
+        Circle circle = mMap.addCircle(circleOptions);
+        return circle;
+    }
+
+    public void removeCircle(Circle circle) {
+        circle.remove();
+    }
+
+    public void animateCameraToLocation(Location location, float zoom) {
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), zoom));
+    }
+
+    public void showMessage(String message) {
+        Toast.makeText(getBaseContext(), message, Toast.LENGTH_SHORT).show();
+    }
+
+    public void showPopupMenuForMarker(Marker marker, final PopupMenuListener listener) {
+        View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
+        final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
+        createGeofence.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                popupWindow.dismiss();
+                listener.onCreateGeofence();
             }
-            permissionsGranted = true;
-            currentLocation = locationManager.getLastKnownLocation(mprovider);
-            locationManager.requestLocationUpdates(mprovider, 15000, 1, locationListener);
+        });
+        TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
+        deleteGeofence.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                popupWindow.dismiss();
+                listener.onDeleteGeofence();
+            }
+        });
+        Display display = getWindowManager().getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
+        popupView.measure(size.x, size.y);
+
+        mPoupMenuWidth = popupView.getMeasuredWidth();
+        mPopupMenuHeight = popupView.getMeasuredHeight();
+
+        mPopupWindow = popupWindow;
+        updatePopupForMarker(marker);
+    }
+
+    private void updatePopupForMarker(Marker marker) {
+        if (mPopupWindow != null) {
+            // marker is visible
+            if (mMap.getProjection().getVisibleRegion().latLngBounds.contains(marker.getPosition())) {
+                if (!mPopupWindow.isShowing()) {
+                    mPopupWindow.showAtLocation(contentView, Gravity.NO_GRAVITY, 0, 0);
+                }
+                Point p = mMap.getProjection().toScreenLocation(marker.getPosition());
+                mPopupWindow.update(p.x - mPoupMenuWidth / 2, p.y - mPopupMenuHeight + 100, -1, -1);
+            } else { // marker outside screen
+                mPopupWindow.dismiss();
+            }
         }
     }
 
-    private  LocationListener locationListener = new LocationListener() {
-        @Override
-        public void onLocationChanged(Location location) {
-            Toast.makeText(getBaseContext(), "Location has changed", Toast.LENGTH_SHORT).show();
-            double latitude = location.getLatitude();
-            double longitude = location.getLongitude();
-            LatLng myGeoPoint = new LatLng(latitude, longitude);
-
-            currentLocation = location;
-
-            if(currentLocationMarker != null) {
-                currentLocationMarker.remove();
-            }
-
-            currentLocationMarker = mMap.addMarker(new MarkerOptions().position(myGeoPoint).title("Your current location"));
-            currentLocationMarker.showInfoWindow();
-//            mMap.moveCamera(CameraUpdateFactory.newLatLng(myGeoPoint));
-            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), 18.0f));
-
-            CircleOptions circleOptions = new CircleOptions()
-                    .center( new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()) )
-                    .radius(20)
-                    .fillColor(0x40ff0000)
-                    .strokeColor(Color.TRANSPARENT)
-                    .strokeWidth(2);
-            Circle circle = mMap.addCircle(circleOptions);
-        }
-
-        @Override
-        public void onStatusChanged(String s, int i, Bundle bundle) {
-
-        }
-
-        @Override
-        public void onProviderEnabled(String s) {
-
-        }
-
-        @Override
-        public void onProviderDisabled(String s) {
-
-        }
-    };
+    /**---------------------------------------------------------------*/
 
 
     @Override
     public void onMapLongClick(LatLng latLng) {
+        presenter.onMapLongClick(latLng);
+    }
 
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        return presenter.onMarkerClick(marker);
+    }
+
+    @Override
+    public void onCameraMove() {
+//        presenter.onCameraMove();
+    }
+
+    public View getContentView() {
+        return contentView;
+    }
+
+    public interface PopupMenuListener {
+        void onCreateGeofence();
+        void onDeleteGeofence();
     }
 }
