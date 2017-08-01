@@ -5,16 +5,36 @@
     android:background="@android:color/darker_gray"
     >
 
-    <TextView
-        android:id="@+id/create_geofence"
+    <LinearLayout
+        android:id="@+id/create_geofence_item"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Create geo fence"
-        android:textColor="@android:color/white"
-        android:padding="20dp"
-        android:textSize="18sp"
-        android:gravity="center"
-        />
+        android:orientation="horizontal"
+        >
+
+        <TextView
+            android:id="@+id/create_geofence"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Create geo fence"
+            android:textColor="@android:color/white"
+            android:padding="20dp"
+            android:textSize="18sp"
+            />
+
+        <EditText
+            android:id="@+id/geofence_radius"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:background="@android:color/white"
+            android:text="20"
+            android:padding="3dp"
+            android:gravity="center"
+            android:layout_marginRight="5dp"
+            />
+    </LinearLayout>
+
 
     <TextView
         android:id="@+id/delete_geofence"
@@ -25,7 +45,6 @@
         android:layout_gravity="center"
         android:padding="20dp"
         android:textSize="18sp"
-        android:gravity="center"
         />
 
 </LinearLayout>

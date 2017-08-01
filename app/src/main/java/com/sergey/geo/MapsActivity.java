@@ -17,11 +17,14 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
 
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -107,6 +110,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return marker;
     }
 
+    public Marker displayMarker(LatLng latlng, String title, boolean showInfo) {
+        MarkerOptions markerOptions = new MarkerOptions();
+        markerOptions.position(latlng);
+        markerOptions.title(title);
+        Marker marker = mMap.addMarker(markerOptions);
+        marker.setSnippet("id:" + marker.getId());
+
+        if(showInfo) marker.showInfoWindow();
+        return marker;
+    }
+
     public void removeMarker(Marker marker) {
         marker.remove();
     }
@@ -114,6 +128,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public Circle displayCircle(Location location, double radius) {
         CircleOptions circleOptions = new CircleOptions();
         circleOptions.center(new LatLng(location.getLatitude(), location.getLongitude()));
+        circleOptions.radius(radius);
+        circleOptions.fillColor(0x40ff0000);
+        circleOptions.strokeColor(Color.TRANSPARENT);
+        circleOptions.strokeWidth(2);
+        Circle circle = mMap.addCircle(circleOptions);
+        return circle;
+    }
+
+    public Circle displayCircle(LatLng latlng, double radius) {
+        CircleOptions circleOptions = new CircleOptions();
+        circleOptions.center(latlng);
         circleOptions.radius(radius);
         circleOptions.fillColor(0x40ff0000);
         circleOptions.strokeColor(Color.TRANSPARENT);
@@ -130,19 +155,35 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), zoom));
     }
 
+    public void animateCameraToLatLng(LatLng latlng, float zoom) {
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
+    }
+
     public void showMessage(String message) {
         Toast.makeText(getBaseContext(), message, Toast.LENGTH_SHORT).show();
     }
 
-    public void showPopupMenuForMarker(Marker marker, final PopupMenuListener listener) {
+    public void showPopupMenuForMarker(MapPresenter.GeoFenceUIModel model, final PopupMenuListener listener) {
+        if (mPopupWindow != null) {
+            mPopupWindow.dismiss();
+            mPopupWindow = null;
+        }
         View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
-        final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
+        final EditText createGeofenceRadius = (EditText) popupView.findViewById(R.id.geofence_radius);
+        createGeofenceRadius.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.showSoftInput(createGeofenceRadius, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
         createGeofence.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 popupWindow.dismiss();
-                listener.onCreateGeofence();
+                listener.onCreateGeofence(Integer.valueOf(createGeofenceRadius.getEditableText().toString()));
             }
         });
         TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
@@ -153,6 +194,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 listener.onDeleteGeofence();
             }
         });
+        View createItem = popupView.findViewById(R.id.create_geofence_item);
+        if(model.geoCircle == null) {
+            createItem.setVisibility(View.VISIBLE);
+        } else {
+            createItem.setVisibility(View.GONE);
+        }
         Display display = getWindowManager().getDefaultDisplay();
         Point size = new Point();
         display.getSize(size);
@@ -162,17 +209,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mPopupMenuHeight = popupView.getMeasuredHeight();
 
         mPopupWindow = popupWindow;
-        updatePopupForMarker(marker);
+        updatePopupForMarker(model);
     }
 
-    private void updatePopupForMarker(Marker marker) {
+    private void updatePopupForMarker(MapPresenter.GeoFenceUIModel model) {
         if (mPopupWindow != null) {
             // marker is visible
-            if (mMap.getProjection().getVisibleRegion().latLngBounds.contains(marker.getPosition())) {
+            if (mMap.getProjection().getVisibleRegion().latLngBounds.contains(model.marker.getPosition())) {
                 if (!mPopupWindow.isShowing()) {
                     mPopupWindow.showAtLocation(contentView, Gravity.NO_GRAVITY, 0, 0);
                 }
-                Point p = mMap.getProjection().toScreenLocation(marker.getPosition());
+                Point p = mMap.getProjection().toScreenLocation(model.marker.getPosition());
                 mPopupWindow.update(p.x - mPoupMenuWidth / 2, p.y - mPopupMenuHeight + 100, -1, -1);
             } else { // marker outside screen
                 mPopupWindow.dismiss();
@@ -203,7 +250,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     public interface PopupMenuListener {
-        void onCreateGeofence();
+        void onCreateGeofence(int radius);
         void onDeleteGeofence();
     }
 }

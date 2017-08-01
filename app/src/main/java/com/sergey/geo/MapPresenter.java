@@ -14,6 +14,9 @@ import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Created by sober on 01.08.2017.
  */
@@ -29,9 +32,11 @@ public class MapPresenter {
     private String mprovider;
 
     private Location currentLocation;
-    private Marker currentLocationMarker;
-    private Circle currentLocationGeofenceCircle;
+//    private Marker currentLocationMarker;
+//    private Circle currentLocationGeofenceCircle;
     private boolean mapReady;
+    private GoogleMap mGoogleMap;
+    private Map<String, GeoFenceUIModel> uiGeoModels = new HashMap<>();
 
 
     public MapPresenter(MapsActivity a) {
@@ -45,9 +50,15 @@ public class MapPresenter {
 
     public void onMapReady(GoogleMap googleMap) {
         mapReady = true;
-        if(currentLocation != null) {
-            currentLocationMarker = activity.displayMarker(currentLocation, CURRENT_LOCATION_TITLE, true);
+        mGoogleMap = googleMap;
 
+        if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        mGoogleMap.setMyLocationEnabled(true);
+
+        if (currentLocation != null) {
+//            currentLocationMarker = activity.displayMarker(currentLocation, CURRENT_LOCATION_TITLE, true);
             activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
         }
     }
@@ -90,11 +101,10 @@ public class MapPresenter {
                 return;
             }
 
-            if(currentLocationMarker != null) {
-                activity.removeMarker(currentLocationMarker);
-            }
-
-            currentLocationMarker = activity.displayMarker(currentLocation, CURRENT_LOCATION_TITLE, true);
+//            if(currentLocationMarker != null) {
+//                activity.removeMarker(currentLocationMarker);
+//            }
+//            currentLocationMarker = activity.displayMarker(currentLocation, CURRENT_LOCATION_TITLE, true);
             activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
         }
 
@@ -114,35 +124,38 @@ public class MapPresenter {
         }
     };
 
-    public boolean onMarkerClick(Marker marker) {
-        if(marker.getId().equals(currentLocationMarker.getId())) {
-            activity.showPopupMenuForMarker(marker, new MapsActivity.PopupMenuListener() {
-                @Override
-                public void onCreateGeofence() {
-                    activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
-                    currentLocationMarker.showInfoWindow();
-                    if(currentLocationGeofenceCircle == null) {
-                        currentLocationGeofenceCircle = activity.displayCircle(currentLocation, DEFAULT_GEOFENCE_RADIUS);
-                    }
-                }
+    public boolean onMarkerClick(final Marker marker) {
+        final GeoFenceUIModel model = uiGeoModels.get(marker.getId());
+        activity.showPopupMenuForMarker(model, new MapsActivity.PopupMenuListener() {
+            @Override
+            public void onCreateGeofence(int radius) {
+//                GeoFenceUIModel model = uiGeoModels.get(marker.getId());
+                activity.animateCameraToLatLng(model.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
+                Circle circle = activity.displayCircle(model.marker.getPosition(), radius);
+                model.geoCircle = circle;
+            }
 
-                @Override
-                public void onDeleteGeofence() {
-                    activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
-                    currentLocationMarker.showInfoWindow();
-                    if(currentLocationGeofenceCircle != null) {
-                        activity.removeCircle(currentLocationGeofenceCircle);
-                        currentLocationGeofenceCircle = null;
-                    }
-
-                }
-            });
-            return true;
-        }
+            @Override
+            public void onDeleteGeofence() {
+//                GeoFenceUIModel model = uiGeoModels.get(marker.getId());
+//                activity.animateCameraToLatLng(model.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
+                activity.removeMarker(model.marker);
+                if(model.geoCircle != null) activity.removeCircle(model.geoCircle);
+                uiGeoModels.remove(marker.getId());
+            }
+        });
         return true;
     }
 
     public void onMapLongClick(LatLng latLng) {
+        Marker marker = activity.displayMarker(latLng, "Tap on marker for geo fence action", true);
+        GeoFenceUIModel uiModel = new GeoFenceUIModel();
+        uiModel.marker = marker;
+        uiGeoModels.put(marker.getId(), uiModel);
+    }
 
+    public static class GeoFenceUIModel {
+        public Marker marker;
+        public Circle geoCircle;
     }
 }
