@@ -5,9 +5,6 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.util.Log;
-
-import static android.content.Context.CONNECTIVITY_SERVICE;
 
 /**
  * Created by sober on 31.07.2017.
@@ -15,31 +12,31 @@ import static android.content.Context.CONNECTIVITY_SERVICE;
 
 public class NetworkUtil {
 
-    public static NetworkType updateNetworkInfo() {
-        NetworkType networkType = null;
+    public static Network updateNetworkInfo() {
+        Network network = null;
         ConnectivityManager connectivityManager = (ConnectivityManager) GeoApp.getInstance().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetInfo = connectivityManager.getActiveNetworkInfo();
         if (activeNetInfo == null) {
-            return networkType;
+            return network;
         }
         switch (activeNetInfo.getType()) {
             case ConnectivityManager.TYPE_WIFI: {
-                networkType = NetworkType.WIFI;
+                network = Network.WIFI;
                 WifiManager wifiManager = (WifiManager) GeoApp.getInstance().getSystemService(Context.WIFI_SERVICE);
                 WifiInfo connectionInfo = wifiManager.getConnectionInfo();
                 if (connectionInfo != null && !connectionInfo.getSSID().equals("")) {
-                    networkType.setName(connectionInfo.getSSID());
+                    network.setName(connectionInfo.getSSID());
                 }
                 break;
             }
             case ConnectivityManager.TYPE_MOBILE: {
-                networkType = NetworkType.MOBILE_DATA;
+                network = Network.MOBILE_DATA;
                 break;
             }
             default:
                 break;
         }
-        return networkType;
+        return network;
     }
 
 }

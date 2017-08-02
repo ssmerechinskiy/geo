@@ -4,7 +4,7 @@ package com.sergey.geo;
  * Created by sober on 31.07.2017.
  */
 
-public enum NetworkType {
+public enum Network {
 
     UNKNOWN(0), MOBILE_DATA(1), WIFI(2);
 
@@ -20,7 +20,7 @@ public enum NetworkType {
 
     private String name;
 
-    NetworkType(int code) {
+    Network(int code) {
         this.code = code;
     }
 

@@ -18,6 +18,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.PopupWindow;
 import android.widget.TextView;
@@ -29,6 +30,8 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
@@ -47,11 +50,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private int mPoupMenuWidth;
     private int mPopupMenuHeight;
 
+    private Button currentLocationButton;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         contentView = findViewById(android.R.id.content);
+        currentLocationButton = (Button) findViewById(R.id.current_location);
         presenter = new MapPresenter(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -92,6 +98,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         Log.d(TAG, "onMapReady");
         mMap = googleMap;
+        currentLocationButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                presenter.onCurrentLocationClick();
+            }
+        });
         presenter.onMapReady(googleMap);
         mMap.setOnMapLongClickListener(this);
         mMap.setOnMarkerClickListener(this);
@@ -110,10 +122,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return marker;
     }
 
+    public Marker displayMarker(LatLng latlng, String title, boolean showInfo, BitmapDescriptor bitmapDescriptor) {
+        Marker marker = displayMarker(latlng, title, showInfo);
+        if(bitmapDescriptor != null) marker.setIcon(bitmapDescriptor);
+        return marker;
+    }
+
     public Marker displayMarker(LatLng latlng, String title, boolean showInfo) {
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(latlng);
         markerOptions.title(title);
+//        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE));
+//        markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley));
         Marker marker = mMap.addMarker(markerOptions);
         marker.setSnippet("id:" + marker.getId());
 

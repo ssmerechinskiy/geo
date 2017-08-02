@@ -6,7 +6,7 @@ import com.google.android.gms.location.Geofence;
  * Created by user on 30.07.2017.
  */
 
-public class GeofenceModel {
+public class GeoFenceModel {
 
     private static final int EXPIRATION_TIME = 600000;
 

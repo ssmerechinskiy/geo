@@ -5,10 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,20 +30,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static android.content.Context.CONNECTIVITY_SERVICE;
-
 /**
  * Created by user on 30.07.2017.
  */
 
-public class GeofenceControllerImpl implements GeofenceController, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
-    public final static String TAG = GeofenceController.class.getSimpleName();
+    public final static String TAG = GeoFenceController.class.getSimpleName();
 
     IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
     private Context context;
-    private List<GeofenceEventListener> listeners = new ArrayList<>();
+    private List<GeoFenceEventListener> listeners = new ArrayList<>();
     private GoogleApiClient mGoogleApiClient;
 
     private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
@@ -55,46 +49,54 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
     private ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
-    private Map<String, GeofenceModel> pendingGeofences = new ConcurrentHashMap<>();
+    private Map<String, GeoFenceModel> pendingGeofences = new ConcurrentHashMap<>();
 
-    private NetworkType currentNetworkType;
+    private Network currentNetwork;
 
-    public GeofenceControllerImpl(Context c) {
+    public GeoFenceControllerImpl(Context c) {
         context = c;
         LocalBroadcastManager.getInstance(context).registerReceiver(networkStateReceiver, intentFilter);
-        currentNetworkType = NetworkUtil.updateNetworkInfo();
+        currentNetwork = NetworkUtil.updateNetworkInfo();
     }
 
     @Override
-    public void addGeofence(final GeofenceModel geofenceModel) {
+    public void addGeoFence(final GeoFenceModel geoFenceModel) {
         requestExecutor.execute(new Runnable() {
             @Override
             public void run() {
-                addGeofenceInternal(geofenceModel);
+                addGeoFenceInternal(geoFenceModel);
             }
         });
     }
 
-    private synchronized void addGeofenceInternal(GeofenceModel geofenceModel) {
-        pendingGeofences.put(geofenceModel.getId(), geofenceModel);
+    private synchronized void addGeoFenceInternal(GeoFenceModel geoFenceModel) {
+        pendingGeofences.put(geoFenceModel.getId(), geoFenceModel);
         if(mGoogleApiClient == null) {
-            Log.d(TAG, "addGeofenceInternal:create client");
+            Log.d(TAG, "addGeoFenceInternal:create client");
+//            GeoApp.showMessage("addGeoFenceInternal:create client");
+            notifyOnMessage(null, "addGeoFenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
                     .addApi(LocationServices.API)
-                    .addConnectionCallbacks(GeofenceControllerImpl.this)
-                    .addOnConnectionFailedListener(GeofenceControllerImpl.this)
+                    .addConnectionCallbacks(GeoFenceControllerImpl.this)
+                    .addOnConnectionFailedListener(GeoFenceControllerImpl.this)
                     .build();
         }
         if(mGoogleApiClient.isConnected()) {
-            addGeofenceToService(geofenceModel);
+            Log.d(TAG, "addGeoFenceInternal:client is connected. trying add to service");
+//            GeoApp.showMessage("addGeoFenceInternal:client is connected. trying add to service");
+            notifyOnMessage(null, "addGeoFenceInternal:client is connected. trying add to service");
+            addGeoFenceToService(geoFenceModel);
         } else {
             if(!mGoogleApiClient.isConnecting()) {
+                Log.d(TAG, "addGeoFenceInternal:client is not connected. connecting");
+//                GeoApp.showMessage("addGeoFenceInternal:client is not connected. connecting");
+                notifyOnMessage(null, "addGeoFenceInternal:client is not connected. connecting");
                 mGoogleApiClient.connect();
             }
         }
     }
 
-    private void addGeofenceToService(GeofenceModel geofence) {
+    private void addGeoFenceToService(GeoFenceModel geofence) {
         GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
         builder.setInitialTrigger(geofence.getTransitionType() == Geofence.GEOFENCE_TRANSITION_ENTER
                 ? GeofencingRequest.INITIAL_TRIGGER_ENTER : GeofencingRequest.INITIAL_TRIGGER_EXIT);
@@ -105,52 +107,60 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                     .setResultCallback(addGeofenceCallback);
         } catch (SecurityException e) {
             Log.e(TAG, "call location service Error:" + e.getMessage());
+//            GeoApp.showMessage("call location service Error:" + e.getMessage());
+            notifyOnMessage(null, "call location service Error:" + e.getMessage());
         }
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        Log.e(TAG, "onConnected");
-        for (GeofenceModel m : pendingGeofences.values()) {
-            addGeofenceToService(m);
+        Log.d(TAG, "onConnected");
+//        GeoApp.showMessage("onConnected");
+        notifyOnMessage(null, "onConnected");
+        for (GeoFenceModel m : pendingGeofences.values()) {
+            addGeoFenceToService(m);
         }
     }
 
     @Override
     public void onConnectionSuspended(int i) {
         Log.d(TAG, "onConnectionSuspended:" + String.valueOf(i));
+//        GeoApp.showMessage("onConnectionSuspended:" + String.valueOf(i));
+        notifyOnMessage(null, "onConnectionSuspended:" + String.valueOf(i));
     }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
         Log.d(TAG, "onConnectionFailed:" + connectionResult.getErrorMessage());
+//        GeoApp.showMessage("onConnectionFailed:" + connectionResult.getErrorMessage());
+        notifyOnMessage(null, "onConnectionFailed:" + connectionResult.getErrorMessage());
     }
 
     @Override
-    public void registerListener(GeofenceEventListener listener) {
+    public void registerListener(GeoFenceEventListener listener) {
         synchronized (listeners) {
             listeners.add(listener);
         }
     }
 
     @Override
-    public void unregisterListener(GeofenceEventListener listener) {
+    public void unregisterListener(GeoFenceEventListener listener) {
         synchronized (listeners) {
             listeners.remove(listener);
         }
     }
 
-    private void notifyOnEvent(GeofenceModel m) {
+    private void notifyOnEvent(GeoFenceModel m) {
         synchronized (listeners) {
-            for (GeofenceEventListener l : listeners) {
+            for (GeoFenceEventListener l : listeners) {
                 l.onEvent(m);
             }
         }
     }
 
-    private void notifyOnMessage(GeofenceModel m, String message) {
+    private void notifyOnMessage(GeoFenceModel m, String message) {
         synchronized (listeners) {
-            for (GeofenceEventListener l : listeners) {
+            for (GeoFenceEventListener l : listeners) {
                 l.onMessage(message);
             }
         }
@@ -164,10 +174,12 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                 GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
                 if (geofencingEvent.hasError()) {
                     Log.e(TAG, "Location Services error: " + geofencingEvent.getErrorCode());
+                    notifyOnMessage(null, "Location Services error: " + geofencingEvent.getErrorCode());
                     return;
                 }
                 int transitionType = geofencingEvent.getGeofenceTransition();
                 List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
+                notifyOnMessage(null, "triggered geo fences size:" + triggeredGeofences.size() + " transition:" + transitionType);
                 for (Geofence geofence : triggeredGeofences) {
                     handleResult(geofence);
                 }
@@ -176,7 +188,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     private void handleResult(Geofence geofence) {
-        GeofenceModel gm = pendingGeofences.get(geofence.getRequestId());
+        GeoFenceModel gm = pendingGeofences.get(geofence.getRequestId());
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
                 notifyOnEvent(gm);
@@ -184,7 +196,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
                 String wifiNetwork = gm.getWifiNetwork();
-                if(!TextUtils.isEmpty(wifiNetwork) && currentNetworkType == NetworkType.WIFI && currentNetworkType.getName().equals(wifiNetwork)) {
+                if(!TextUtils.isEmpty(wifiNetwork) && currentNetwork == Network.WIFI && currentNetwork.getName().equals(wifiNetwork)) {
                     notifyOnMessage(gm, "exit but wifi connected");
                 } else {
                     notifyOnEvent(gm);
@@ -202,7 +214,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            currentNetworkType = NetworkUtil.updateNetworkInfo();
+            currentNetwork = NetworkUtil.updateNetworkInfo();
         }
     };
 
@@ -223,12 +235,13 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     private PendingIntent getPendingIntent() {
-        Intent i = new Intent(GeoApp.getInstance(), GeofenceEventReceiver.class);
+        Intent i = new Intent(GeoApp.getInstance(), GeoFenceEventReceiver.class);
         return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    public NetworkType getCurrentNetworkType() {
-        return currentNetworkType;
+    @Override
+    public Network getCurrentNetwork() {
+        return currentNetwork;
     }
 
 }

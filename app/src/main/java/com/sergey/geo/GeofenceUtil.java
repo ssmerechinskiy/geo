@@ -10,13 +10,24 @@ import java.util.Map;
  * Created by user on 30.07.2017.
  */
 
-public class GeofenceUtil {
-    public static List<Geofence> convertToList(Map<String, GeofenceModel> map) {
+public class GeoFenceUtil {
+    public static List<Geofence> convertToList(Map<String, GeoFenceModel> map) {
         if(map == null || map.values().size() == 0) return null;
         List<Geofence> list = new ArrayList<>();
-        for (GeofenceModel m : map.values()) {
+        for (GeoFenceModel m : map.values()) {
             list.add(m.newGeofence());
         }
         return list;
+    }
+
+    public static String getTransionName(int transitionType) {
+        switch (transitionType) {
+            case Geofence.GEOFENCE_TRANSITION_ENTER :
+                return "ENTER";
+            case Geofence.GEOFENCE_TRANSITION_EXIT :
+                return "EXIT";
+            default:
+                return "Unknown";
+        }
     }
 }

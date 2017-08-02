@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:inputType="number"
             android:background="@android:color/white"
-            android:text="20"
+            android:text="50"
             android:padding="3dp"
             android:gravity="center"
             android:layout_marginRight="5dp"
