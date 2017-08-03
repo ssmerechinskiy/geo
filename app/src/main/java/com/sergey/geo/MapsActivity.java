@@ -184,6 +184,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     public void showPopupMenuForMarker(MapPresenter.GeoFenceUIModel model, final PopupMenuListener listener) {
+        if(model == null) return;
         if (mPopupWindow != null) {
             mPopupWindow.dismiss();
             mPopupWindow = null;
