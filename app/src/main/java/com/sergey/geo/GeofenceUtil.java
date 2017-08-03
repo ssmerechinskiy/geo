@@ -26,6 +26,8 @@ public class GeoFenceUtil {
                 return "ENTER";
             case Geofence.GEOFENCE_TRANSITION_EXIT :
                 return "EXIT";
+            case Geofence.GEOFENCE_TRANSITION_DWELL :
+                return "INSIDE";
             default:
                 return "Unknown";
         }

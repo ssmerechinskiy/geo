@@ -70,11 +70,12 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
     }
 
     private synchronized void addGeoFenceInternal(GeoFenceModel geoFenceModel) {
+        Log.d(TAG, "addGeoFenceInternal");
         pendingGeofences.put(geoFenceModel.getId(), geoFenceModel);
         if(mGoogleApiClient == null) {
             Log.d(TAG, "addGeoFenceInternal:create client");
 //            GeoApp.showMessage("addGeoFenceInternal:create client");
-            notifyOnMessage(null, "addGeoFenceInternal:create client");
+//            notifyOnMessage(null, "addGeoFenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
                     .addApi(LocationServices.API)
                     .addConnectionCallbacks(GeoFenceControllerImpl.this)
@@ -84,13 +85,13 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
         if(mGoogleApiClient.isConnected()) {
             Log.d(TAG, "addGeoFenceInternal:client is connected. trying add to service");
 //            GeoApp.showMessage("addGeoFenceInternal:client is connected. trying add to service");
-            notifyOnMessage(null, "addGeoFenceInternal:client is connected. trying add to service");
+//            notifyOnMessage(null, "addGeoFenceInternal:client is connected. trying add to service");
             addGeoFenceToService(geoFenceModel);
         } else {
             if(!mGoogleApiClient.isConnecting()) {
                 Log.d(TAG, "addGeoFenceInternal:client is not connected. connecting");
 //                GeoApp.showMessage("addGeoFenceInternal:client is not connected. connecting");
-                notifyOnMessage(null, "addGeoFenceInternal:client is not connected. connecting");
+//                notifyOnMessage(null, "addGeoFenceInternal:client is not connected. connecting");
                 mGoogleApiClient.connect();
             }
         }
@@ -98,8 +99,9 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
 
     private void addGeoFenceToService(GeoFenceModel geofence) {
         GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(geofence.getTransitionType() == Geofence.GEOFENCE_TRANSITION_ENTER
-                ? GeofencingRequest.INITIAL_TRIGGER_ENTER : GeofencingRequest.INITIAL_TRIGGER_EXIT);
+//        builder.setInitialTrigger(geofence.getTransitionType() == Geofence.GEOFENCE_TRANSITION_ENTER
+//                ? GeofencingRequest.INITIAL_TRIGGER_ENTER : GeofencingRequest.INITIAL_TRIGGER_EXIT);
+        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER|GeofencingRequest.INITIAL_TRIGGER_DWELL);
         builder.addGeofence(geofence.newGeofence());
         GeofencingRequest build = builder.build();
         try {
@@ -116,7 +118,7 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
     public void onConnected(@Nullable Bundle bundle) {
         Log.d(TAG, "onConnected");
 //        GeoApp.showMessage("onConnected");
-        notifyOnMessage(null, "onConnected");
+//        notifyOnMessage(null, "onConnected");
         for (GeoFenceModel m : pendingGeofences.values()) {
             addGeoFenceToService(m);
         }
@@ -179,7 +181,7 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
                 }
                 int transitionType = geofencingEvent.getGeofenceTransition();
                 List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
-                notifyOnMessage(null, "triggered geo fences size:" + triggeredGeofences.size() + " transition:" + transitionType);
+                notifyOnMessage(null, "triggered transition:" + GeoFenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
                 for (Geofence geofence : triggeredGeofences) {
                     handleResult(geofence);
                 }
@@ -188,20 +190,23 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
     }
 
     private void handleResult(Geofence geofence) {
+//        notifyOnMessage(null, "handle res:" + geofence.getRequestId());
         GeoFenceModel gm = pendingGeofences.get(geofence.getRequestId());
+        if(gm == null) return;
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
                 notifyOnEvent(gm);
-                pendingGeofences.remove(gm.getId());
+//                pendingGeofences.remove(gm.getId());
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
-                String wifiNetwork = gm.getWifiNetwork();
-                if(!TextUtils.isEmpty(wifiNetwork) && currentNetwork == Network.WIFI && currentNetwork.getName().equals(wifiNetwork)) {
-                    notifyOnMessage(gm, "exit but wifi connected");
-                } else {
-                    notifyOnEvent(gm);
-                    pendingGeofences.remove(gm.getId());
-                }
+                notifyOnEvent(gm);
+//                String wifiNetwork = gm.getWifiNetwork();
+//                if(!TextUtils.isEmpty(wifiNetwork) && currentNetwork == Network.WIFI && currentNetwork.getName().equals(wifiNetwork)) {
+//                    notifyOnMessage(gm, "exit but wifi connected");
+//                } else {
+//                    notifyOnEvent(gm);
+//                    pendingGeofences.remove(gm.getId());
+//                }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
                 notifyOnMessage(gm, "you are inside geofence");
@@ -221,9 +226,17 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
     private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
         @Override
         public void onResult(@NonNull Status status) {
-            if(pendingGeofences.keySet().size() == 0) {
-                mGoogleApiClient.disconnect();
+            if (status.isSuccess()) {
+                Log.d(TAG, "addGeofenceCallback success:");
+            } else {
+                Log.d(TAG, "addGeofenceCallback error:" + status.getStatusMessage());
             }
+            String msg = "Geo fences add status: " + status.getStatusMessage();
+            notifyOnMessage(null, msg);
+
+//            if(pendingGeofences.keySet().size() == 0) {
+//                mGoogleApiClient.disconnect();
+//            }
         }
     };
 

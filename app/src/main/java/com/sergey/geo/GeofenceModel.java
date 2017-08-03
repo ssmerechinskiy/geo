@@ -71,6 +71,7 @@ public class GeoFenceModel {
                 .setTransitionTypes(transitionType)
                 .setCircularRegion(latitude, longitude, radius)
                 .setExpirationDuration(EXPIRATION_TIME)
+                .setLoiteringDelay(60)
                 .build();
     }
 }

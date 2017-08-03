@@ -57,10 +57,17 @@ public class MapPresenter {
     public final static float CURRENT_LOCATION_DEFAULT_ZOOM = 18.0f;
     public final static double DEFAULT_GEOFENCE_RADIUS = 20.d;
 
-    private MapsActivity activity;
-//    private LocationManager locationManager;
-//    private String mprovider;
+    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
+    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
+    private static final int REQUEST_CHECK_SETTINGS = 0x1;
+    private volatile boolean mRequestingLocationUpdates;
+    private FusedLocationProviderClient mFusedLocationClient;
+    private SettingsClient mSettingsClient;
+    private LocationRequest mLocationRequest;
+    private LocationCallback mLocationCallback;
+    private LocationSettingsRequest mLocationSettingsRequest;
 
+    private MapsActivity activity;
     private Location currentLocation;
     private boolean mapReady;
     private GoogleMap mGoogleMap;
@@ -97,16 +104,37 @@ public class MapPresenter {
 
     public MapPresenter(MapsActivity a) {
         activity = a;
-//        locationManager = (LocationManager) activity.getSystemService(Context.LOCATION_SERVICE);
         geoController = GeoApp.getInstance().getGeoFenceController();
         geoController.registerListener(geoFenceEventListener);
         currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
+        initLocationParams();
+    }
 
+    private void initLocationParams() {
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(activity);
         mSettingsClient = LocationServices.getSettingsClient(activity);
-        createLocationCallback();
-        createLocationRequest();
-        buildLocationSettingsRequest();
+
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                currentLocation = locationResult.getLastLocation();
+                if(!mapReady) {
+                    activity.showMessage("Map not ready");
+                    return;
+                }
+                displayCurrentLocation();
+            }
+        };
+
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
+        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        builder.addLocationRequest(mLocationRequest);
+        mLocationSettingsRequest = builder.build();
 
     }
 
@@ -117,8 +145,6 @@ public class MapPresenter {
     public void onMapReady(GoogleMap googleMap) {
         mapReady = true;
         mGoogleMap = googleMap;
-//        mGoogleMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker").snippet("Snippet"));
-
         if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
@@ -136,36 +162,17 @@ public class MapPresenter {
         }
     }
 
-    private void navigateToCurrentLocation() {
-        activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
-    }
-
     public void onStop() {
     }
 
     public void onDestroy() {
         mainThreadHandler.removeCallbacksAndMessages(null);
-//        if (locationManager != null) {
-//            if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-//            } else {
-//                locationManager.removeUpdates(locationListener);
-//            }
-//        }
         geoController.unregisterListener(geoFenceEventListener);
         activity = null;
     }
 
     private void updateCurrentLocation() {
         startLocationUpdates();
-//        Criteria criteria = new Criteria();
-//        mprovider = locationManager.getBestProvider(criteria, false);
-//        if (mprovider != null && !mprovider.equals("")) {
-//            if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-//                return;
-//            }
-//            currentLocation = locationManager.getLastKnownLocation(mprovider);
-//            locationManager.requestLocationUpdates(mprovider, 2000, 10, locationListener);
-//        }
     }
 
     private LocationListener locationListener = new LocationListener() {
@@ -203,10 +210,8 @@ public class MapPresenter {
                 activity.animateCameraToLatLng(uiModel.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
                 Circle circle = activity.displayCircle(uiModel.marker.getPosition(), radius);
                 uiModel.geoCircle = circle;
-                GeoFenceModel geoModelEnter = createGeofenceModelFromUIModel(uiModel, Geofence.GEOFENCE_TRANSITION_ENTER);
-//                GeoFenceModel geoModelExit = createGeofenceModelFromUIModel(uiModel, Geofence.GEOFENCE_TRANSITION_EXIT);
-                geoController.addGeoFence(geoModelEnter);
-//                geoController.addGeoFence(geoModelExit);
+                GeoFenceModel geoModel = createGeofenceModelFromUIModel(uiModel);
+                geoController.addGeoFence(geoModel);
             }
 
             @Override
@@ -226,21 +231,10 @@ public class MapPresenter {
         uiGeoModels.put(marker.getId(), uiModel);
     }
 
-    public void onCurrentLocationClick() {
-        navigateToCurrentLocation();
-    }
-
-    public static GeoFenceModel createGeofenceModelFromUIModel(GeoFenceUIModel uiModel, int transitionType) {
+    public static GeoFenceModel createGeofenceModelFromUIModel(GeoFenceUIModel uiModel) {
         if(uiModel == null) return null;
         GeoFenceModel geoModel = new GeoFenceModel();
-        String idPart = "unknown transition";
-        if(transitionType == Geofence.GEOFENCE_TRANSITION_ENTER) {
-            idPart = "_enter";
-        } else if (transitionType == Geofence.GEOFENCE_TRANSITION_EXIT) {
-            idPart = "_exit";
-        }
-        String id = uiModel.marker.getId() + idPart;
-        geoModel.setId(id);
+        geoModel.setId(uiModel.marker.getId());
         geoModel.setLatitude(uiModel.marker.getPosition().latitude);
         geoModel.setLongitude(uiModel.marker.getPosition().longitude);
         geoModel.setRadius((float) uiModel.geoCircle.getRadius());
@@ -258,65 +252,8 @@ public class MapPresenter {
         public Circle geoCircle;
     }
 
-
-
-
-
-
-    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
-    private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
-    private static final int REQUEST_CHECK_SETTINGS = 0x1;
-    private String mLastUpdateTime;
-    private boolean mRequestingLocationUpdates;
-    private FusedLocationProviderClient mFusedLocationClient;
-    private SettingsClient mSettingsClient;
-    private LocationRequest mLocationRequest;
-    private LocationCallback mLocationCallback;
-    private LocationSettingsRequest mLocationSettingsRequest;
-
-    private void createLocationRequest() {
-        mLocationRequest = new LocationRequest();
-
-        // Sets the desired interval for active location updates. This interval is
-        // inexact. You may not receive updates at all if no location sources are available, or
-        // you may receive them slower than requested. You may also receive updates faster than
-        // requested if other applications are requesting location at a faster interval.
-        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
-
-        // Sets the fastest rate for active location updates. This interval is exact, and your
-        // application will never receive updates faster than this value.
-        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-    }
-
-    /**
-     * Creates a callback for receiving location events.
-     */
-    private void createLocationCallback() {
-        mLocationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                super.onLocationResult(locationResult);
-                currentLocation = locationResult.getLastLocation();
-                mLastUpdateTime = DateFormat.getTimeInstance().format(new Date());
-
-                if(!mapReady) {
-                    activity.showMessage("Map not ready");
-                    return;
-                }
-                displayCurrentLocation();
-            }
-        };
-    }
-
-    private void buildLocationSettingsRequest() {
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
-        builder.addLocationRequest(mLocationRequest);
-        mLocationSettingsRequest = builder.build();
-    }
-
     private void startLocationUpdates() {
+        mRequestingLocationUpdates = true;
         // Begin by checking if the device has the necessary location settings.
         mSettingsClient.checkLocationSettings(mLocationSettingsRequest)
                 .addOnSuccessListener(activity, new OnSuccessListener<LocationSettingsResponse>() {
@@ -360,16 +297,12 @@ public class MapPresenter {
             Log.d(TAG, "stopLocationUpdates: updates never requested, no-op.");
             return;
         }
-
-        // It is a good practice to remove location requests when the activity is in a paused or
-        // stopped state. Doing so helps battery performance and is especially
-        // recommended in applications that request frequent location updates.
-        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
-//                .addOnCompleteListener(activity, new OnCompleteListener<Void>() {
-//                    @Override
-//                    public void onComplete(@NonNull Task<Void> task) {
-//                        mRequestingLocationUpdates = false;
-//                    }
-//                });
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback)
+                .addOnCompleteListener(activity, new OnCompleteListener<Void>() {
+                    @Override
+                    public void onComplete(@NonNull Task<Void> task) {
+                        mRequestingLocationUpdates = false;
+                    }
+                });
     }
 }

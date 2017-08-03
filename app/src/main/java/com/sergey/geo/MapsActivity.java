@@ -50,14 +50,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private int mPoupMenuWidth;
     private int mPopupMenuHeight;
 
-    private Button currentLocationButton;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         contentView = findViewById(android.R.id.content);
-        currentLocationButton = (Button) findViewById(R.id.current_location);
         presenter = new MapPresenter(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -98,12 +95,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         Log.d(TAG, "onMapReady");
         mMap = googleMap;
-        currentLocationButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                presenter.onCurrentLocationClick();
-            }
-        });
         presenter.onMapReady(googleMap);
         mMap.setOnMapLongClickListener(this);
         mMap.setOnMarkerClickListener(this);
