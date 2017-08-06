@@ -12,41 +12,27 @@ import android.widget.Toast;
 public class GeoApp extends Application {
 
     private static GeoApp sInstance;
-    private static Toast sToast;
-    private GeoFenceController geoFenceController = null;
-    private static Handler mainThreadHandler = new Handler(Looper.getMainLooper());
+    private GeofenceController geofenceController = null;
 
     @Override
     public void onCreate() {
         super.onCreate();
         sInstance = this;
-        geoFenceController = new GeoFenceControllerImpl(sInstance);
+        geofenceController = new GeofenceControllerImpl(sInstance);
     }
 
     public static GeoApp getInstance() {
         return sInstance;
     }
 
-    public GeoFenceController getGeoFenceController() {
-        return geoFenceController;
+    public GeofenceController getGeofenceController() {
+        return geofenceController;
     }
 
     @Override
     public void onTerminate() {
-        geoFenceController.onDestroy();
+        geofenceController.onDestroy();
         super.onTerminate();
     }
 
-//    public static void showMessage(final String message) {
-//        mainThreadHandler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                if(sToast == null) {
-//                    sToast = Toast.makeText(GeoApp.getInstance(), message, Toast.LENGTH_SHORT);
-//                }
-//                sToast.setText(message);
-//                sToast.show();
-//            }
-//        });
-//    }
 }

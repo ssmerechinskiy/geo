@@ -4,10 +4,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-public class GeoFenceEventReceiver extends BroadcastReceiver {
+public class GeofenceEventReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        GeoApp.getInstance().getGeoFenceController().onGeofenceEvent(intent);
+        GeoApp.getInstance().getGeofenceController().onGeofenceEvent(intent);
     }
 }

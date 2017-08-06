@@ -1,24 +1,24 @@
 package com.sergey.geo;
 
-import android.content.Context;
+import android.*;
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
-import android.location.Criteria;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Bundle;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
-import android.widget.Toast;
+import android.view.View;
 
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
@@ -33,18 +33,16 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 
-import java.text.DateFormat;
-import java.util.Date;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static com.google.android.gms.maps.model.BitmapDescriptorFactory.fromResource;
 import static com.google.android.gms.plus.PlusOneDummyView.TAG;
 
 /**
@@ -53,18 +51,20 @@ import static com.google.android.gms.plus.PlusOneDummyView.TAG;
 
 public class MapPresenter {
 
+    public static final int REQUEST_PERMISSIONS_REQUEST_CODE = 34;
+    public static final int REQUEST_CHECK_SETTINGS = 0x1;
+
     public final static String GEO_FENCE_MARKER_TITLE = "Tap on marker for geo fence action";
     public final static float CURRENT_LOCATION_DEFAULT_ZOOM = 18.0f;
     public final static double DEFAULT_GEOFENCE_RADIUS = 20.d;
 
     private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
     private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
-    private static final int REQUEST_CHECK_SETTINGS = 0x1;
+
     private volatile boolean mRequestingLocationUpdates;
     private FusedLocationProviderClient mFusedLocationClient;
     private SettingsClient mSettingsClient;
     private LocationRequest mLocationRequest;
-    private LocationCallback mLocationCallback;
     private LocationSettingsRequest mLocationSettingsRequest;
 
     private MapsActivity activity;
@@ -72,20 +72,95 @@ public class MapPresenter {
     private boolean mapReady;
     private GoogleMap mGoogleMap;
     private Map<String, GeoFenceUIModel> uiGeoModels = new HashMap<>();
-    private GeoFenceController geoController;
+    private GeofenceController geoController;
     private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
 
+    private boolean isCameraAutoMovingMode = true;
 
-    private BitmapDescriptor currentLocationBitmapDescriptor;
-    private Marker currentLocationMarker;
 
-    private GeoFenceEventListener geoFenceEventListener = new GeoFenceEventListener() {
+//    private BitmapDescriptor currentLocationBitmapDescriptor;
+//    private Marker currentLocationMarker;
+
+
+    public MapPresenter(MapsActivity a) {
+        activity = a;
+        geoController = GeoApp.getInstance().getGeofenceController();
+        geoController.registerListener(geofenceEventListener);
+//        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
+        prepareLocationServices();
+    }
+
+    public void onStart() {
+    }
+
+    public void onResume() {
+        if(!mRequestingLocationUpdates) {
+            if(checkPermissions()) {
+                startLocationUpdates();
+                activity.prepareMap();
+            } else {
+                requestPermissions();
+            }
+        }
+    }
+
+    public void onStop() {
+    }
+
+
+
+    public void onDestroy() {
+        stopLocationUpdates();
+        mainThreadHandler.removeCallbacksAndMessages(null);
+        geoController.unregisterListener(geofenceEventListener);
+        activity = null;
+    }
+
+    public void onMapReady(GoogleMap googleMap) {
+        mapReady = true;
+        mGoogleMap = googleMap;
+        try {
+            mGoogleMap.setMyLocationEnabled(true);
+            if(currentLocation != null) activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+        } catch (SecurityException e) {
+            activity.showMessage("Permissions not granted");
+            requestPermissions();
+        }
+    }
+
+    private void prepareLocationServices() {
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(activity);
+        mSettingsClient = LocationServices.getSettingsClient(activity);
+
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
+        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        builder.addLocationRequest(mLocationRequest);
+        mLocationSettingsRequest = builder.build();
+
+    }
+
+    private LocationCallback mLocationCallback = new LocationCallback() {
         @Override
-        public void onEvent(final GeoFenceModel geoFenceModel) {
+        public void onLocationResult(LocationResult locationResult) {
+            super.onLocationResult(locationResult);
+            currentLocation = locationResult.getLastLocation();
+            if (isCameraAutoMovingMode && currentLocation != null) {
+                activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+            }
+        }
+    };
+
+    private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
+        @Override
+        public void onEvent(final GeofenceModel geofenceModel) {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    activity.showMessage("OnEvent:" + GeoFenceUtil.getTransionName(geoFenceModel.getTransitionType()) + " Geo fence:" + geoFenceModel.getId() + " wifi:" + geoFenceModel.getWifiNetwork());
+                    activity.showMessage("OnEvent:" + GeofenceUtil.getTransionName(geofenceModel.getTransitionType()) + " Geo fence:" + geofenceModel.getId() + " wifi:" + geofenceModel.getWifiNetwork());
                 }
             });
         }
@@ -99,108 +174,53 @@ public class MapPresenter {
                 }
             });
         }
-    };
 
-
-    public MapPresenter(MapsActivity a) {
-        activity = a;
-        geoController = GeoApp.getInstance().getGeoFenceController();
-        geoController.registerListener(geoFenceEventListener);
-        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
-        initLocationParams();
-    }
-
-    private void initLocationParams() {
-        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(activity);
-        mSettingsClient = LocationServices.getSettingsClient(activity);
-
-        mLocationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                super.onLocationResult(locationResult);
-                currentLocation = locationResult.getLastLocation();
-                if(!mapReady) {
-                    activity.showMessage("Map not ready");
-                    return;
+        @Override
+        public void onGeofenceAddedSuccess(final List<String> ids) {
+            mainThreadHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    String id = ids.get(0);
+                    if(id == null) return;
+                    activity.hideProgress();
+                    final GeoFenceUIModel uiModel = uiGeoModels.get(id);
+                    Circle circle = activity.displayCircle(uiModel.marker.getPosition(), uiModel.radius);
+                    uiModel.geoCircle = circle;
                 }
-                displayCurrentLocation();
-            }
-        };
-
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setFastestInterval(FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
-        builder.addLocationRequest(mLocationRequest);
-        mLocationSettingsRequest = builder.build();
-
-    }
-
-    public void onStart() {
-        updateCurrentLocation();
-    }
-
-    public void onMapReady(GoogleMap googleMap) {
-        mapReady = true;
-        mGoogleMap = googleMap;
-        if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        mGoogleMap.setMyLocationEnabled(true);
-
-        displayCurrentLocation();
-    }
-
-    private void displayCurrentLocation() {
-        if (currentLocation != null) {
-            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
-            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
-            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
-            activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
-        }
-    }
-
-    public void onStop() {
-    }
-
-    public void onDestroy() {
-        mainThreadHandler.removeCallbacksAndMessages(null);
-        geoController.unregisterListener(geoFenceEventListener);
-        activity = null;
-    }
-
-    private void updateCurrentLocation() {
-        startLocationUpdates();
-    }
-
-    private LocationListener locationListener = new LocationListener() {
-        @Override
-        public void onLocationChanged(Location location) {
-//            activity.showMessage("Location has changed");
-
-            currentLocation = location;
-
-            if(!mapReady) {
-                activity.showMessage("Map not ready");
-                return;
-            }
-            displayCurrentLocation();
+            });
         }
 
         @Override
-        public void onStatusChanged(String s, int i, Bundle bundle) {
+        public void onGeofenceAddedFailed(final List<String> ids) {
+            mainThreadHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    String id = ids.get(0);
+                    if(id == null) return;
+                    uiGeoModels.remove(id);
+                    activity.hideProgress();
+                }
+            });
         }
 
         @Override
-        public void onProviderEnabled(String s) {
+        public void onGeofenceDeletedSuccess(List<String> ids) {
+
         }
 
         @Override
-        public void onProviderDisabled(String s) {
+        public void onGeofenceDeletedFailed(List<String> ids) {
+
         }
     };
+
+    public void onMyLocationButtonClick() {
+        isCameraAutoMovingMode = true;
+    }
+
+    public void onUserDragCamera() {
+        isCameraAutoMovingMode = false;
+    }
 
     public boolean onMarkerClick(final Marker marker) {
         final GeoFenceUIModel uiModel = uiGeoModels.get(marker.getId());
@@ -208,9 +228,9 @@ public class MapPresenter {
             @Override
             public void onCreateGeofence(int radius) {
                 activity.animateCameraToLatLng(uiModel.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
-                Circle circle = activity.displayCircle(uiModel.marker.getPosition(), radius);
-                uiModel.geoCircle = circle;
-                GeoFenceModel geoModel = createGeofenceModelFromUIModel(uiModel);
+                uiModel.radius = radius;
+                GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
+                activity.showProgress();
                 geoController.addGeoFence(geoModel);
             }
 
@@ -224,6 +244,7 @@ public class MapPresenter {
         return true;
     }
 
+
     public void onMapLongClick(LatLng latLng) {
         Marker marker = activity.displayMarker(latLng, GEO_FENCE_MARKER_TITLE, true);
         GeoFenceUIModel uiModel = new GeoFenceUIModel();
@@ -231,26 +252,6 @@ public class MapPresenter {
         uiGeoModels.put(marker.getId(), uiModel);
     }
 
-    public static GeoFenceModel createGeofenceModelFromUIModel(GeoFenceUIModel uiModel) {
-        if(uiModel == null) return null;
-        GeoFenceModel geoModel = new GeoFenceModel();
-        geoModel.setId(uiModel.marker.getId());
-        geoModel.setLatitude(uiModel.marker.getPosition().latitude);
-        geoModel.setLongitude(uiModel.marker.getPosition().longitude);
-        geoModel.setRadius((float) uiModel.geoCircle.getRadius());
-        geoModel.setTransitionType(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT | Geofence.GEOFENCE_TRANSITION_DWELL);
-
-        Network network = GeoApp.getInstance().getGeoFenceController().getCurrentNetwork();
-        if(network != null && network == Network.WIFI) {
-            geoModel.setWifiNetwork(network.getName());
-        }
-        return geoModel;
-    }
-
-    public static class GeoFenceUIModel {
-        public Marker marker;
-        public Circle geoCircle;
-    }
 
     private void startLocationUpdates() {
         mRequestingLocationUpdates = true;
@@ -305,4 +306,88 @@ public class MapPresenter {
                     }
                 });
     }
+
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        Log.i(TAG, "onRequestPermissionResult");
+        if (requestCode == REQUEST_PERMISSIONS_REQUEST_CODE) {
+            if (grantResults.length <= 0) {
+                Log.i(TAG, "User interaction was cancelled.");
+            } else if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (mRequestingLocationUpdates) {
+                    Log.i(TAG, "Permission granted, updates requested, starting location updates");
+                    startLocationUpdates();
+                    activity.prepareMap();
+                }
+            } else {
+                activity.showSnackbar(R.string.permission_denied_explanation, R.string.settings, new View.OnClickListener() {
+                            @Override
+                            public void onClick(View view) {
+                                Intent intent = new Intent();
+                                intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                Uri uri = Uri.fromParts("package", BuildConfig.APPLICATION_ID, null);
+                                intent.setData(uri);
+                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                activity.startActivity(intent);
+                            }
+                        });
+            }
+        }
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        switch (requestCode) {
+            // Check for the integer request code originally supplied to startResolutionForResult().
+            case REQUEST_CHECK_SETTINGS:
+                switch (resultCode) {
+                    case Activity.RESULT_OK:
+                        Log.i(TAG, "User agreed to make required location settings changes.");
+                        // Nothing to do. startLocationupdates() gets called in onResume again.
+                        break;
+                    case Activity.RESULT_CANCELED:
+                        Log.i(TAG, "User chose not to make required location settings changes.");
+                        mRequestingLocationUpdates = false;
+                        break;
+                }
+                break;
+        }
+    }
+
+    private boolean checkPermissions() {
+        if (ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(activity, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        return true;
+    }
+
+    private void requestPermissions() {
+        boolean shouldProvideRationale = ActivityCompat.shouldShowRequestPermissionRationale(activity, android.Manifest.permission.ACCESS_FINE_LOCATION);
+        if (shouldProvideRationale) {
+            Log.i(TAG, "Displaying permission rationale to provide additional context.");
+            activity.showSnackbar(R.string.permission_rationale, android.R.string.ok, new View.OnClickListener() {
+                        @Override
+                        public void onClick(View view) {
+                            ActivityCompat.requestPermissions(activity, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS_REQUEST_CODE);
+                        }
+                    });
+        } else {
+            Log.i(TAG, "Requesting permission");
+            ActivityCompat.requestPermissions(activity, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_PERMISSIONS_REQUEST_CODE);
+        }
+    }
+
+
+    public static class GeoFenceUIModel {
+        public Marker marker;
+        public double radius;
+        public Circle geoCircle;
+    }
+
+    //    private void displayCurrentLocation() {
+//        if (currentLocation != null) {
+//            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
+//            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+//            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
+//            activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+//        }
+//    }
 }

@@ -6,7 +6,7 @@ import com.google.android.gms.location.Geofence;
  * Created by user on 30.07.2017.
  */
 
-public class GeoFenceModel {
+public class GeofenceModel {
 
     private static final int EXPIRATION_TIME = 600000;
 
@@ -16,6 +16,8 @@ public class GeoFenceModel {
     private float radius;
     private int transitionType;
     private String wifiNetwork;
+
+    private boolean addedToGeoService;
 
     public String getId() {
         return id;
@@ -63,6 +65,14 @@ public class GeoFenceModel {
 
     public void setWifiNetwork(String wifiNetwork) {
         this.wifiNetwork = wifiNetwork;
+    }
+
+    public boolean isAddedToGeoService() {
+        return addedToGeoService;
+    }
+
+    public void setAddedToGeoService(boolean addedToGeoService) {
+        this.addedToGeoService = addedToGeoService;
     }
 
     public Geofence newGeofence() {

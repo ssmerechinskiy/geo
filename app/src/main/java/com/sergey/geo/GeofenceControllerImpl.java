@@ -6,12 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
-import android.text.TextUtils;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -34,73 +31,67 @@ import java.util.concurrent.Executors;
  * Created by user on 30.07.2017.
  */
 
-public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class GeofenceControllerImpl implements GeofenceController, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
-    public final static String TAG = GeoFenceController.class.getSimpleName();
+    public final static String TAG = GeofenceController.class.getSimpleName();
 
     IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
     private Context context;
-    private List<GeoFenceEventListener> listeners = new ArrayList<>();
+    private List<GeofenceEventListener> listeners = new ArrayList<>();
     private GoogleApiClient mGoogleApiClient;
 
-    private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
-
-    private ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
     private ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
-    private Map<String, GeoFenceModel> pendingGeofences = new ConcurrentHashMap<>();
+    private Map<String, GeofenceModel> geofenceCache = new ConcurrentHashMap<>();
+
+    private Map<String, GeofenceModel> addingInProcessGeoIds = new ConcurrentHashMap<>();
+    private volatile boolean isAddingGeofencesInProgress = false;
+
+    private Map<String, GeofenceModel> deletingInProcessGeoIds = new ConcurrentHashMap<>();
+    private volatile boolean isDeletingGeofencesInProgress = false;
 
     private Network currentNetwork;
 
-    public GeoFenceControllerImpl(Context c) {
+    public GeofenceControllerImpl(Context c) {
         context = c;
         LocalBroadcastManager.getInstance(context).registerReceiver(networkStateReceiver, intentFilter);
         currentNetwork = NetworkUtil.updateNetworkInfo();
     }
 
     @Override
-    public void addGeoFence(final GeoFenceModel geoFenceModel) {
-        requestExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                addGeoFenceInternal(geoFenceModel);
-            }
-        });
-    }
-
-    private synchronized void addGeoFenceInternal(GeoFenceModel geoFenceModel) {
-        Log.d(TAG, "addGeoFenceInternal");
-        pendingGeofences.put(geoFenceModel.getId(), geoFenceModel);
+    public synchronized void addGeoFence(final GeofenceModel geofenceModel) {
+        Log.d(TAG, "addGeoFence");
+        if(isAddingGeofencesInProgress) {
+            List<String> list = new ArrayList<>();
+            list.add(geofenceModel.getId());
+            notifyOnGeofenceAddedFailed(list);
+            return;
+        }
+        isAddingGeofencesInProgress = true;
+        addingInProcessGeoIds.put(geofenceModel.getId(), geofenceModel);
+        geofenceCache.put(geofenceModel.getId(), geofenceModel);
         if(mGoogleApiClient == null) {
             Log.d(TAG, "addGeoFenceInternal:create client");
-//            GeoApp.showMessage("addGeoFenceInternal:create client");
-//            notifyOnMessage(null, "addGeoFenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
                     .addApi(LocationServices.API)
-                    .addConnectionCallbacks(GeoFenceControllerImpl.this)
-                    .addOnConnectionFailedListener(GeoFenceControllerImpl.this)
+                    .addConnectionCallbacks(GeofenceControllerImpl.this)
+                    .addOnConnectionFailedListener(GeofenceControllerImpl.this)
                     .build();
         }
         if(mGoogleApiClient.isConnected()) {
             Log.d(TAG, "addGeoFenceInternal:client is connected. trying add to service");
-//            GeoApp.showMessage("addGeoFenceInternal:client is connected. trying add to service");
-//            notifyOnMessage(null, "addGeoFenceInternal:client is connected. trying add to service");
-            addGeoFenceToService(geoFenceModel);
+            addGeoFenceToService(geofenceModel);
         } else {
             if(!mGoogleApiClient.isConnecting()) {
                 Log.d(TAG, "addGeoFenceInternal:client is not connected. connecting");
-//                GeoApp.showMessage("addGeoFenceInternal:client is not connected. connecting");
-//                notifyOnMessage(null, "addGeoFenceInternal:client is not connected. connecting");
                 mGoogleApiClient.connect();
             }
         }
     }
 
-    private void addGeoFenceToService(GeoFenceModel geofence) {
+    private void addGeoFenceToService(GeofenceModel geofence) {
         GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-//        builder.setInitialTrigger(geofence.getTransitionType() == Geofence.GEOFENCE_TRANSITION_ENTER
-//                ? GeofencingRequest.INITIAL_TRIGGER_ENTER : GeofencingRequest.INITIAL_TRIGGER_EXIT);
         builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER|GeofencingRequest.INITIAL_TRIGGER_DWELL);
         builder.addGeofence(geofence.newGeofence());
         GeofencingRequest build = builder.build();
@@ -109,64 +100,68 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
                     .setResultCallback(addGeofenceCallback);
         } catch (SecurityException e) {
             Log.e(TAG, "call location service Error:" + e.getMessage());
-//            GeoApp.showMessage("call location service Error:" + e.getMessage());
             notifyOnMessage(null, "call location service Error:" + e.getMessage());
         }
     }
 
     @Override
-    public void onConnected(@Nullable Bundle bundle) {
-        Log.d(TAG, "onConnected");
-//        GeoApp.showMessage("onConnected");
-//        notifyOnMessage(null, "onConnected");
-        for (GeoFenceModel m : pendingGeofences.values()) {
-            addGeoFenceToService(m);
+    public synchronized void removeGeoFence(GeofenceModel geofenceModel) {
+        Log.d(TAG, "addGeoFence");
+        if(isDeletingGeofencesInProgress) {
+            List<String> list = new ArrayList<>();
+            list.add(geofenceModel.getId());
+            notifyOnGeofenceDeletedFailed(list);
+            return;
         }
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Log.d(TAG, "onConnectionSuspended:" + String.valueOf(i));
-//        GeoApp.showMessage("onConnectionSuspended:" + String.valueOf(i));
-        notifyOnMessage(null, "onConnectionSuspended:" + String.valueOf(i));
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-        Log.d(TAG, "onConnectionFailed:" + connectionResult.getErrorMessage());
-//        GeoApp.showMessage("onConnectionFailed:" + connectionResult.getErrorMessage());
-        notifyOnMessage(null, "onConnectionFailed:" + connectionResult.getErrorMessage());
-    }
-
-    @Override
-    public void registerListener(GeoFenceEventListener listener) {
-        synchronized (listeners) {
-            listeners.add(listener);
+        isDeletingGeofencesInProgress = true;
+        deletingInProcessGeoIds.put(geofenceModel.getId(), geofenceModel);
+        if(mGoogleApiClient == null) {
+            Log.d(TAG, "addGeoFenceInternal:create client");
+            mGoogleApiClient = new GoogleApiClient.Builder(context)
+                    .addApi(LocationServices.API)
+                    .addConnectionCallbacks(GeofenceControllerImpl.this)
+                    .addOnConnectionFailedListener(GeofenceControllerImpl.this)
+                    .build();
         }
-    }
-
-    @Override
-    public void unregisterListener(GeoFenceEventListener listener) {
-        synchronized (listeners) {
-            listeners.remove(listener);
-        }
-    }
-
-    private void notifyOnEvent(GeoFenceModel m) {
-        synchronized (listeners) {
-            for (GeoFenceEventListener l : listeners) {
-                l.onEvent(m);
+        if(mGoogleApiClient.isConnected()) {
+            Log.d(TAG, "addGeoFenceInternal:client is connected. trying add to service");
+            deleteGeoFenceFromService(geofenceModel);
+        } else {
+            if(!mGoogleApiClient.isConnecting()) {
+                Log.d(TAG, "addGeoFenceInternal:client is not connected. connecting");
+                mGoogleApiClient.connect();
             }
         }
     }
 
-    private void notifyOnMessage(GeoFenceModel m, String message) {
-        synchronized (listeners) {
-            for (GeoFenceEventListener l : listeners) {
-                l.onMessage(message);
-            }
-        }
+    private void deleteGeoFenceFromService(GeofenceModel geofence) {
+        List<String> deleted = new ArrayList<>();
+        deleted.add(geofence.getId());
+        LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, deleted);
     }
+
+    private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
+        @Override
+        public void onResult(@NonNull final Status status) {
+            resultExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    List<String> list = new ArrayList<>(addingInProcessGeoIds.keySet());
+                    if (status.isSuccess()) {
+                        String addedId = list.get(0);
+                        GeofenceModel geofenceModel = geofenceCache.get(addedId);
+                        // TODO: 06.08.2017 add  to storage last added id and then notify listener
+                        notifyOnGeofenceAddedSuccess(list);
+                    } else {
+                        notifyOnGeofenceAddedFailed(list);
+                    }
+                    addingInProcessGeoIds.clear();
+                    isAddingGeofencesInProgress = false;
+                }
+            });
+
+        }
+    };
 
     @Override
     public void onGeofenceEvent(final Intent intent) {
@@ -181,7 +176,7 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
                 }
                 int transitionType = geofencingEvent.getGeofenceTransition();
                 List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
-                notifyOnMessage(null, "triggered transition:" + GeoFenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
+                notifyOnMessage(null, "triggered transition:" + GeofenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
                 for (Geofence geofence : triggeredGeofences) {
                     handleResult(geofence);
                 }
@@ -190,13 +185,12 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
     }
 
     private void handleResult(Geofence geofence) {
-//        notifyOnMessage(null, "handle res:" + geofence.getRequestId());
-        GeoFenceModel gm = pendingGeofences.get(geofence.getRequestId());
+        GeofenceModel gm = geofenceCache.get(geofence.getRequestId());
         if(gm == null) return;
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
                 notifyOnEvent(gm);
-//                pendingGeofences.remove(gm.getId());
+//                geofenceCache.remove(gm.getId());
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
                 notifyOnEvent(gm);
@@ -205,7 +199,7 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
 //                    notifyOnMessage(gm, "exit but wifi connected");
 //                } else {
 //                    notifyOnEvent(gm);
-//                    pendingGeofences.remove(gm.getId());
+//                    geofenceCache.remove(gm.getId());
 //                }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
@@ -216,6 +210,30 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
         }
     }
 
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        Log.d(TAG, "onConnected");
+        for (GeofenceModel m : geofenceCache.values()) {
+            addGeoFenceToService(m);
+        }
+
+        for (GeofenceModel m : deletingInProcessGeoIds.values()) {
+            deleteGeoFenceFromService(m);
+        }
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.d(TAG, "onConnectionSuspended:" + String.valueOf(i));
+        notifyOnMessage(null, "onConnectionSuspended:" + String.valueOf(i));
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.d(TAG, "onConnectionFailed:" + connectionResult.getErrorMessage());
+        notifyOnMessage(null, "onConnectionFailed:" + connectionResult.getErrorMessage());
+    }
+
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -223,38 +241,84 @@ public class GeoFenceControllerImpl implements GeoFenceController, GoogleApiClie
         }
     };
 
-    private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
-        @Override
-        public void onResult(@NonNull Status status) {
-            if (status.isSuccess()) {
-                Log.d(TAG, "addGeofenceCallback success:");
-            } else {
-                Log.d(TAG, "addGeofenceCallback error:" + status.getStatusMessage());
-            }
-            String msg = "Geo fences add status: " + status.getStatusMessage();
-            notifyOnMessage(null, msg);
-
-//            if(pendingGeofences.keySet().size() == 0) {
-//                mGoogleApiClient.disconnect();
-//            }
-        }
-    };
-
     @Override
     public void onDestroy() {
         LocalBroadcastManager.getInstance(context).unregisterReceiver(networkStateReceiver);
+        geofenceCache.clear();
+        addingInProcessGeoIds.clear();
         context = null;
-        mainThreadHandler.removeCallbacksAndMessages(null);
     }
 
     private PendingIntent getPendingIntent() {
-        Intent i = new Intent(GeoApp.getInstance(), GeoFenceEventReceiver.class);
+        Intent i = new Intent(GeoApp.getInstance(), GeofenceEventReceiver.class);
         return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     @Override
     public Network getCurrentNetwork() {
         return currentNetwork;
+    }
+
+    @Override
+    public void registerListener(GeofenceEventListener listener) {
+        synchronized (listeners) {
+            listeners.add(listener);
+        }
+    }
+
+    @Override
+    public void unregisterListener(GeofenceEventListener listener) {
+        synchronized (listeners) {
+            listeners.remove(listener);
+        }
+    }
+
+    private void notifyOnEvent(GeofenceModel m) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onEvent(m);
+            }
+        }
+    }
+
+    private void notifyOnMessage(GeofenceModel m, String message) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onMessage(message);
+            }
+        }
+    }
+
+    private void notifyOnGeofenceAddedSuccess(List<String> ids) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onGeofenceAddedSuccess(ids);
+            }
+        }
+    }
+
+    private void notifyOnGeofenceAddedFailed(List<String> ids) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onGeofenceAddedFailed(ids);
+            }
+        }
+    }
+
+    private void notifyOnGeofenceDeletedSuccess(List<String> ids) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onGeofenceDeletedSuccess(ids);
+            }
+        }
+    }
+
+    private void notifyOnGeofenceDeletedFailed(List<String> ids) {
+        synchronized (listeners) {
+            for (GeofenceEventListener l : listeners) {
+                l.onGeofenceDeletedFailed(ids);
+            }
+        }
     }
 
 }

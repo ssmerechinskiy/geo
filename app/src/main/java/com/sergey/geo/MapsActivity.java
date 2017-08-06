@@ -1,6 +1,8 @@
 package com.sergey.geo;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Point;
@@ -8,6 +10,8 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
@@ -38,13 +42,14 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener, GoogleMap.OnCameraMoveListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener, GoogleMap.OnMyLocationButtonClickListener, GoogleMap.OnCameraMoveStartedListener {
     private final static String TAG = MapsActivity.class.getSimpleName();
 
     private GoogleMap mMap;
     private MapPresenter presenter;
 
     private View contentView;
+    private View progress;
 
     private PopupWindow mPopupWindow;
     private int mPoupMenuWidth;
@@ -55,10 +60,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         contentView = findViewById(android.R.id.content);
+        progress = findViewById(R.id.progress);
         presenter = new MapPresenter(this);
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
     }
 
     @Override
@@ -66,6 +69,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onStart();
         Log.d(TAG, "onStart");
         presenter.onStart();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        presenter.onResume();
     }
 
     @Override
@@ -82,14 +91,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         presenter.onDestroy();
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
+    /**---------------------------------------------------------------------------------------------
+    * Map events
      */
     @Override
     public void onMapReady(GoogleMap googleMap) {
@@ -98,26 +101,43 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         presenter.onMapReady(googleMap);
         mMap.setOnMapLongClickListener(this);
         mMap.setOnMarkerClickListener(this);
-        mMap.setOnCameraMoveListener(this);
+        mMap.setOnMyLocationButtonClickListener(this);
+        mMap.setOnCameraMoveStartedListener(this);
     }
 
-    /**---------------------------------------------------------------*/
-    public Marker displayMarker(Location location, String title, boolean showInfo) {
-        LatLng point = new LatLng(location.getLatitude(), location.getLongitude());
-        MarkerOptions markerOptions = new MarkerOptions();
-        markerOptions.position(point);
-        markerOptions.title(title);
-        Marker marker = mMap.addMarker(markerOptions);
-        marker.setSnippet("id:" + marker.getId());
-        if(showInfo) marker.showInfoWindow();
-        return marker;
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        presenter.onMapLongClick(latLng);
     }
 
-    public Marker displayMarker(LatLng latlng, String title, boolean showInfo, BitmapDescriptor bitmapDescriptor) {
-        Marker marker = displayMarker(latlng, title, showInfo);
-        if(bitmapDescriptor != null) marker.setIcon(bitmapDescriptor);
-        return marker;
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        return presenter.onMarkerClick(marker);
     }
+
+    @Override
+    public boolean onMyLocationButtonClick() {
+        presenter.onMyLocationButtonClick();
+        return false;
+    }
+
+    @Override
+    public void onCameraMoveStarted(int i) {
+        switch (i) {
+            case REASON_GESTURE :
+                presenter.onUserDragCamera();
+                return;
+        }
+    }
+    /**---------------------------------------------------------------------------------------------
+     * Map util methods
+     * */
+    public void prepareMap() {
+        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+    }
+
 
     public Marker displayMarker(LatLng latlng, String title, boolean showInfo) {
         MarkerOptions markerOptions = new MarkerOptions();
@@ -136,17 +156,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         marker.remove();
     }
 
-    public Circle displayCircle(Location location, double radius) {
-        CircleOptions circleOptions = new CircleOptions();
-        circleOptions.center(new LatLng(location.getLatitude(), location.getLongitude()));
-        circleOptions.radius(radius);
-        circleOptions.fillColor(0x40ff0000);
-        circleOptions.strokeColor(Color.TRANSPARENT);
-        circleOptions.strokeWidth(2);
-        Circle circle = mMap.addCircle(circleOptions);
-        return circle;
-    }
-
     public Circle displayCircle(LatLng latlng, double radius) {
         CircleOptions circleOptions = new CircleOptions();
         circleOptions.center(latlng);
@@ -162,14 +171,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         circle.remove();
     }
 
-    public void animateCameraToLocation(Location location, float zoom) {
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), zoom));
-    }
-
     public void animateCameraToLatLng(LatLng latlng, float zoom) {
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, zoom));
     }
 
+
+    /**---------------------------------------------------------------------------------------------
+     * Activity util methods
+     */
     public void showMessage(String message) {
         Toast.makeText(getBaseContext(), message, Toast.LENGTH_SHORT).show();
     }
@@ -239,30 +248,76 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    public void showSnackbar(final int mainTextStringId, final int actionStringId, View.OnClickListener listener) {
+        Snackbar.make(findViewById(android.R.id.content), getString(mainTextStringId), Snackbar.LENGTH_INDEFINITE)
+                .setAction(getString(actionStringId), listener).show();
+    }
+
+    public void showProgress() {
+        progress.setVisibility(View.VISIBLE);
+    }
+
+    public void hideProgress() {
+        progress.setVisibility(View.GONE);
+    }
+
+
+
     /**---------------------------------------------------------------*/
-
-
     @Override
-    public void onMapLongClick(LatLng latLng) {
-        presenter.onMapLongClick(latLng);
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        presenter.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
-    public boolean onMarkerClick(Marker marker) {
-        return presenter.onMarkerClick(marker);
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        presenter.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
-    @Override
-    public void onCameraMove() {
-//        presenter.onCameraMove();
-    }
-
-    public View getContentView() {
-        return contentView;
-    }
 
     public interface PopupMenuListener {
         void onCreateGeofence(int radius);
         void onDeleteGeofence();
+    }
+
+
+
+
+
+
+
+
+
+    public void animateCameraToLocation(Location location, float zoom) {
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), zoom));
+    }
+
+
+    public Marker displayMarker(Location location, String title, boolean showInfo) {
+        LatLng point = new LatLng(location.getLatitude(), location.getLongitude());
+        MarkerOptions markerOptions = new MarkerOptions();
+        markerOptions.position(point);
+        markerOptions.title(title);
+        Marker marker = mMap.addMarker(markerOptions);
+        marker.setSnippet("id:" + marker.getId());
+        if(showInfo) marker.showInfoWindow();
+        return marker;
+    }
+
+    public Marker displayMarker(LatLng latlng, String title, boolean showInfo, BitmapDescriptor bitmapDescriptor) {
+        Marker marker = displayMarker(latlng, title, showInfo);
+        if(bitmapDescriptor != null) marker.setIcon(bitmapDescriptor);
+        return marker;
+    }
+
+    public Circle displayCircle(Location location, double radius) {
+        CircleOptions circleOptions = new CircleOptions();
+        circleOptions.center(new LatLng(location.getLatitude(), location.getLongitude()));
+        circleOptions.radius(radius);
+        circleOptions.fillColor(0x40ff0000);
+        circleOptions.strokeColor(Color.TRANSPARENT);
+        circleOptions.strokeWidth(2);
+        Circle circle = mMap.addCircle(circleOptions);
+        return circle;
     }
 }

@@ -46,7 +46,7 @@
         </activity>
 
         <receiver
-            android:name=".GeoFenceEventReceiver"
+            android:name=".GeofenceEventReceiver"
             android:enabled="true"
             android:exported="true"></receiver>
     </application>
