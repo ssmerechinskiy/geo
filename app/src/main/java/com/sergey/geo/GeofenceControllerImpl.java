@@ -35,7 +35,9 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     public final static String TAG = GeofenceController.class.getSimpleName();
 
-    IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
+    private static GeofenceControllerImpl instance = new GeofenceControllerImpl();
+
+    public final static IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
     private Context context;
     private List<GeofenceEventListener> listeners = new ArrayList<>();
@@ -52,9 +54,16 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private Network currentNetwork;
 
-    public GeofenceControllerImpl(Context c) {
-        context = c;
-        LocalBroadcastManager.getInstance(context).registerReceiver(networkStateReceiver, intentFilter);
+    public static GeofenceControllerImpl getInstance() {
+        return instance;
+    }
+
+    private GeofenceControllerImpl() {
+    }
+
+    public void init(Context c) {
+        context = GeoApp.getInstance();
+        context.registerReceiver(networkStateReceiver, intentFilter);
         currentNetwork = NetworkUtil.updateNetworkInfo();
     }
 
@@ -260,7 +269,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     @Override
     public void onDestroy() {
-        LocalBroadcastManager.getInstance(context).unregisterReceiver(networkStateReceiver);
+        context.unregisterReceiver(networkStateReceiver);
         geofenceDataSource.removeAllGeofences();
         addingInProcessGeoIds.clear();
         context = null;

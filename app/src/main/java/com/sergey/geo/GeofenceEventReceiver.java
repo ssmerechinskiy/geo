@@ -8,6 +8,6 @@ public class GeofenceEventReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        GeoApp.getInstance().getGeofenceController().onGeofenceEvent(intent);
+        GeofenceControllerImpl.getInstance().onGeofenceEvent(intent);
     }
 }

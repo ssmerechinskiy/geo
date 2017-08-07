@@ -12,26 +12,21 @@ import android.widget.Toast;
 public class GeoApp extends Application {
 
     private static GeoApp sInstance;
-    private GeofenceController geofenceController = null;
 
     @Override
     public void onCreate() {
         super.onCreate();
         sInstance = this;
-        geofenceController = new GeofenceControllerImpl(sInstance);
+        GeofenceControllerImpl.getInstance().init(sInstance);
     }
 
     public static GeoApp getInstance() {
         return sInstance;
     }
 
-    public GeofenceController getGeofenceController() {
-        return geofenceController;
-    }
 
     @Override
     public void onTerminate() {
-        geofenceController.onDestroy();
         super.onTerminate();
     }
 

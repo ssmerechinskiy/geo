@@ -183,23 +183,37 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Toast.makeText(getBaseContext(), message, Toast.LENGTH_SHORT).show();
     }
 
-    public void showPopupMenuForMarker(MapPresenter.GeoFenceUIModel model, final PopupMenuListener listener) {
+    public void showPopupMenuForMarker(final MapPresenter.GeoFenceUIModel model, final PopupMenuListener listener) {
         if(model == null) return;
         if (mPopupWindow != null) {
             mPopupWindow.dismiss();
             mPopupWindow = null;
         }
 
-        Network network = GeoApp.getInstance().getGeofenceController().getCurrentNetwork();
-        String networkName = null;
-        if(network != null && network == Network.WIFI) {
-            networkName = network.getName();
-        }
-
         View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
         final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+
         TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
         final EditText createGeofenceRadius = (EditText) popupView.findViewById(R.id.geofence_radius);
+
+        final EditText geofenceName = (EditText)  popupView.findViewById(R.id.geofence_name);
+        geofenceName.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.showSoftInput(createGeofenceRadius, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+
+        View createNetworkContainer = popupView.findViewById(R.id.create_geofence_network_item);
+        final TextView networkName = (TextView) popupView.findViewById(R.id.geofence_network_name);
+        if(model.networkName != null) {
+            createNetworkContainer.setVisibility(View.VISIBLE);
+            networkName.setText(model.networkName);
+        } else {
+            createNetworkContainer.setVisibility(View.GONE);
+        }
+
         createGeofenceRadius.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -211,7 +225,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onClick(View v) {
                 popupWindow.dismiss();
-                listener.onCreateGeofence(Integer.valueOf(createGeofenceRadius.getEditableText().toString()));
+                int radius = Integer.valueOf(createGeofenceRadius.getEditableText().toString());
+                String name = String.valueOf(geofenceName.getEditableText().toString());
+                model.radius = radius;
+                model.geofenceName = name;
+                listener.onCreateGeofence(model);
+//                listener.onCreateGeofence(Integer.valueOf(createGeofenceRadius.getEditableText().toString()));
             }
         });
         TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
@@ -222,12 +241,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 listener.onDeleteGeofence();
             }
         });
-        View createItem = popupView.findViewById(R.id.create_geofence_item);
+
+        View createContainer = popupView.findViewById(R.id.create_container);
         if(model.geoCircle == null) {
-            createItem.setVisibility(View.VISIBLE);
+            createContainer.setVisibility(View.VISIBLE);
         } else {
-            createItem.setVisibility(View.GONE);
+            createContainer.setVisibility(View.GONE);
         }
+
         Display display = getWindowManager().getDefaultDisplay();
         Point size = new Point();
         display.getSize(size);
@@ -255,9 +276,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    public void hidePopupMenuForMarker() {
+        if(mPopupWindow != null) {
+            mPopupWindow.dismiss();
+            mPopupWindow = null;
+        }
+    }
+
     public void showSnackbar(final int mainTextStringId, final int actionStringId, View.OnClickListener listener) {
         Snackbar.make(findViewById(android.R.id.content), getString(mainTextStringId), Snackbar.LENGTH_INDEFINITE)
                 .setAction(getString(actionStringId), listener).show();
+    }
+
+    public void showSnackbar(final String mainText, final String actionString, View.OnClickListener listener) {
+        Snackbar.make(findViewById(android.R.id.content), mainText, Snackbar.LENGTH_INDEFINITE)
+                .setAction(actionString, listener).show();
     }
 
     public void showProgress() {
@@ -283,8 +316,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
     public interface PopupMenuListener {
-        void onCreateGeofence(int radius);
+//        void onCreateGeofence(int radius);
+        void onCreateGeofence(MapPresenter.GeoFenceUIModel model);
         void onDeleteGeofence();
+
     }
 
 

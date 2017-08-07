@@ -22,7 +22,7 @@ public class NetworkUtil {
         switch (activeNetInfo.getType()) {
             case ConnectivityManager.TYPE_WIFI: {
                 network = Network.WIFI;
-                WifiManager wifiManager = (WifiManager) GeoApp.getInstance().getSystemService(Context.WIFI_SERVICE);
+                WifiManager wifiManager = (WifiManager) GeoApp.getInstance().getApplicationContext().getSystemService(Context.WIFI_SERVICE);
                 WifiInfo connectionInfo = wifiManager.getConnectionInfo();
                 if (connectionInfo != null && !connectionInfo.getSSID().equals("")) {
                     network.setName(connectionInfo.getSSID());

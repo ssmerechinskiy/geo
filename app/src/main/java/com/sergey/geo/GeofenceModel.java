@@ -16,6 +16,7 @@ public class GeofenceModel {
     private float radius;
     private int transitionType;
     private String wifiNetwork;
+    private String name;
 
     private boolean addedToGeoService;
 
@@ -83,5 +84,13 @@ public class GeofenceModel {
                 .setExpirationDuration(EXPIRATION_TIME)
                 .setLoiteringDelay(60)
                 .build();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }

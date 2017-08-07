@@ -3,6 +3,8 @@ package com.sergey.geo;
 import android.*;
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
@@ -13,6 +15,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.View;
 
@@ -81,13 +84,16 @@ public class MapPresenter {
     private BitmapDescriptor currentLocationBitmapDescriptor;
     private Marker currentLocationMarker;
 
+    private Network currentNetwork;
+
 
     public MapPresenter(MapsActivity a) {
         activity = a;
-        geoController = GeoApp.getInstance().getGeofenceController();
+        geoController = GeofenceControllerImpl.getInstance();
         geoController.registerListener(geofenceEventListener);
         currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
+        activity.registerReceiver(networkStateReceiver, GeofenceControllerImpl.intentFilter);
     }
 
     public void onStart() {
@@ -105,6 +111,7 @@ public class MapPresenter {
     }
 
     public void onStop() {
+        activity.hidePopupMenuForMarker();
     }
 
 
@@ -112,6 +119,7 @@ public class MapPresenter {
     public void onDestroy() {
         stopLocationUpdates();
         mainThreadHandler.removeCallbacksAndMessages(null);
+        activity.unregisterReceiver(networkStateReceiver);
         geoController.unregisterListener(geofenceEventListener);
         activity = null;
     }
@@ -122,9 +130,22 @@ public class MapPresenter {
         try {
             mGoogleMap.setMyLocationEnabled(true);
             if(currentLocation != null) activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+            currentNetwork = NetworkUtil.updateNetworkInfo();
+            showNetworkStatusSnackbar();
         } catch (SecurityException e) {
             activity.showMessage("Permissions not granted");
             requestPermissions();
+        }
+    }
+
+    private void showNetworkStatusSnackbar() {
+        if(currentNetwork != null && currentNetwork.getName() != null) {
+            activity.showSnackbar("Current Wifi Network:", currentNetwork.getName().toString(), new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+
+                }
+            });
         }
     }
 
@@ -234,10 +255,13 @@ public class MapPresenter {
 
     public boolean onMarkerClick(final Marker marker) {
         final GeoFenceUIModel uiModel = uiGeoModels.get(marker.getId());
+        Network network = geoController.getCurrentNetwork();
+        if(network != null && network.getName() != null) {
+            uiModel.networkName = network.getName();
+        }
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
-            public void onCreateGeofence(int radius) {
-                uiModel.radius = radius;
+            public void onCreateGeofence(GeoFenceUIModel model) {
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
                 activity.showProgress();
                 geoController.addGeoFence(geoModel);
@@ -384,12 +408,22 @@ public class MapPresenter {
         }
     }
 
+    private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            currentNetwork = NetworkUtil.updateNetworkInfo();
+            showNetworkStatusSnackbar();
+        }
+    };
+
 
     public static class GeoFenceUIModel {
         public Marker marker;
         public double radius;
         public Circle geoCircle;
-        public GeofenceModel geofenceModel;
+//        public GeofenceModel geofenceModel;
+        public String networkName;
+        public String geofenceName;
     }
 
 }
