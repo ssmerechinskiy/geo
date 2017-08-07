@@ -189,6 +189,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mPopupWindow.dismiss();
             mPopupWindow = null;
         }
+
+        Network network = GeoApp.getInstance().getGeofenceController().getCurrentNetwork();
+        String networkName = null;
+        if(network != null && network == Network.WIFI) {
+            networkName = network.getName();
+        }
+
         View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
         final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);

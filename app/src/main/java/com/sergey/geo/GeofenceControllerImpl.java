@@ -43,8 +43,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
-    private Map<String, GeofenceModel> geofenceCache = new ConcurrentHashMap<>();
-
+    private GeofenceDataSource geofenceDataSource = GeofenceDataSourceImpl.getInstance();
     private Map<String, GeofenceModel> addingInProcessGeoIds = new ConcurrentHashMap<>();
     private volatile boolean isAddingGeofencesInProgress = false;
 
@@ -70,7 +69,6 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
         isAddingGeofencesInProgress = true;
         addingInProcessGeoIds.put(geofenceModel.getId(), geofenceModel);
-        geofenceCache.put(geofenceModel.getId(), geofenceModel);
         if(mGoogleApiClient == null) {
             Log.d(TAG, "addGeoFenceInternal:create client");
             mGoogleApiClient = new GoogleApiClient.Builder(context)
@@ -103,6 +101,27 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
             notifyOnMessage(null, "call location service Error:" + e.getMessage());
         }
     }
+
+    private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
+        @Override
+        public void onResult(@NonNull final Status status) {
+            resultExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    List<String> list = new ArrayList<>(addingInProcessGeoIds.keySet());
+                    if (status.isSuccess()) {
+                        geofenceDataSource.saveGeofences(new ArrayList<>(addingInProcessGeoIds.values()));
+                        notifyOnGeofenceAddedSuccess(list);
+                    } else {
+                        notifyOnGeofenceAddedFailed(list);
+                    }
+                    addingInProcessGeoIds.clear();
+                    isAddingGeofencesInProgress = false;
+                }
+            });
+
+        }
+    };
 
     @Override
     public synchronized void removeGeoFence(GeofenceModel geofenceModel) {
@@ -137,26 +156,24 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private void deleteGeoFenceFromService(GeofenceModel geofence) {
         List<String> deleted = new ArrayList<>();
         deleted.add(geofence.getId());
-        LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, deleted);
+        LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, deleted).setResultCallback(deleteGeofenceCallback);
     }
 
-    private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
+    private ResultCallback<Status> deleteGeofenceCallback = new ResultCallback<Status>() {
         @Override
         public void onResult(@NonNull final Status status) {
             resultExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    List<String> list = new ArrayList<>(addingInProcessGeoIds.keySet());
+                    List<String> list = new ArrayList<>(deletingInProcessGeoIds.keySet());
                     if (status.isSuccess()) {
-                        String addedId = list.get(0);
-                        GeofenceModel geofenceModel = geofenceCache.get(addedId);
-                        // TODO: 06.08.2017 add  to storage last added id and then notify listener
-                        notifyOnGeofenceAddedSuccess(list);
+                        geofenceDataSource.removeGeofences(list);
+                        notifyOnGeofenceDeletedSuccess(list);
                     } else {
-                        notifyOnGeofenceAddedFailed(list);
+                        notifyOnGeofenceDeletedFailed(list);
                     }
-                    addingInProcessGeoIds.clear();
-                    isAddingGeofencesInProgress = false;
+                    deletingInProcessGeoIds.clear();
+                    isDeletingGeofencesInProgress = false;
                 }
             });
 
@@ -185,7 +202,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     private void handleResult(Geofence geofence) {
-        GeofenceModel gm = geofenceCache.get(geofence.getRequestId());
+        GeofenceModel gm = geofenceDataSource.getGeofenceById(geofence.getRequestId());
         if(gm == null) return;
         switch (gm.getTransitionType()) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
@@ -213,7 +230,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         Log.d(TAG, "onConnected");
-        for (GeofenceModel m : geofenceCache.values()) {
+        for (GeofenceModel m : addingInProcessGeoIds.values()) {
             addGeoFenceToService(m);
         }
 
@@ -244,7 +261,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     @Override
     public void onDestroy() {
         LocalBroadcastManager.getInstance(context).unregisterReceiver(networkStateReceiver);
-        geofenceCache.clear();
+        geofenceDataSource.removeAllGeofences();
         addingInProcessGeoIds.clear();
         context = null;
     }

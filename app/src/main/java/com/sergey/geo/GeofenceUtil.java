@@ -43,10 +43,10 @@ public class GeofenceUtil {
         geoModel.setRadius((float) uiModel.radius);
         geoModel.setTransitionType(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT | Geofence.GEOFENCE_TRANSITION_DWELL);
 
-        Network network = GeoApp.getInstance().getGeofenceController().getCurrentNetwork();
-        if(network != null && network == Network.WIFI) {
-            geoModel.setWifiNetwork(network.getName());
-        }
+//        Network network = GeoApp.getInstance().getGeofenceController().getCurrentNetwork();
+//        if(network != null && network == Network.WIFI) {
+//            geoModel.setWifiNetwork(network.getName());
+//        }
         return geoModel;
     }
 }

@@ -78,15 +78,15 @@ public class MapPresenter {
     private boolean isCameraAutoMovingMode = true;
 
 
-//    private BitmapDescriptor currentLocationBitmapDescriptor;
-//    private Marker currentLocationMarker;
+    private BitmapDescriptor currentLocationBitmapDescriptor;
+    private Marker currentLocationMarker;
 
 
     public MapPresenter(MapsActivity a) {
         activity = a;
         geoController = GeoApp.getInstance().getGeofenceController();
         geoController.registerListener(geofenceEventListener);
-//        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
+        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
     }
 
@@ -151,8 +151,17 @@ public class MapPresenter {
             if (isCameraAutoMovingMode && currentLocation != null) {
                 activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
             }
+            displayCurrentLocation();
         }
     };
+
+    private void displayCurrentLocation() {
+        if (currentLocation != null) {
+            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
+            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
+        }
+    }
 
     private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
         @Override
@@ -186,6 +195,7 @@ public class MapPresenter {
                     final GeoFenceUIModel uiModel = uiGeoModels.get(id);
                     Circle circle = activity.displayCircle(uiModel.marker.getPosition(), uiModel.radius);
                     uiModel.geoCircle = circle;
+                    activity.animateCameraToLatLng(uiModel.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
                 }
             });
         }
@@ -227,7 +237,6 @@ public class MapPresenter {
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
             public void onCreateGeofence(int radius) {
-                activity.animateCameraToLatLng(uiModel.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
                 uiModel.radius = radius;
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
                 activity.showProgress();
@@ -380,14 +389,7 @@ public class MapPresenter {
         public Marker marker;
         public double radius;
         public Circle geoCircle;
+        public GeofenceModel geofenceModel;
     }
 
-    //    private void displayCurrentLocation() {
-//        if (currentLocation != null) {
-//            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
-//            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
-//            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
-//            activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
-//        }
-//    }
 }
