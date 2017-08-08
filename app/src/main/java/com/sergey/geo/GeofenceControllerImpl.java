@@ -62,7 +62,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     public void init(Context c) {
-        context = GeoApp.getInstance();
+        context = c;
         context.registerReceiver(networkStateReceiver, intentFilter);
         currentNetwork = NetworkUtil.updateNetworkInfo();
     }
@@ -202,34 +202,38 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                 }
                 int transitionType = geofencingEvent.getGeofenceTransition();
                 List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
-                notifyOnMessage(null, "triggered transition:" + GeofenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
-                for (Geofence geofence : triggeredGeofences) {
-                    handleResult(geofence);
-                }
+                handleResult(triggeredGeofences, transitionType);
+//                notifyOnMessage(null, "triggered transition:" + GeofenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
             }
         });
     }
 
-    private void handleResult(Geofence geofence) {
-        GeofenceModel gm = geofenceDataSource.getGeofenceById(geofence.getRequestId());
-        if(gm == null) return;
-        switch (gm.getTransitionType()) {
+    private void handleResult(List<Geofence> triggeredGeofences, int transitionType) {
+        if(triggeredGeofences == null || triggeredGeofences.size() == 0) return;
+        Geofence triggerredGeofence = triggeredGeofences.get(0);
+        GeofenceModel gm = geofenceDataSource.getGeofenceById(triggerredGeofence.getRequestId());
+        if(gm == null) {
+            notifyOnMessage(null, "occurs event for object which does not exist in data source");
+            return;
+        }
+        switch (transitionType) {
             case Geofence.GEOFENCE_TRANSITION_ENTER:
-                notifyOnEvent(gm);
-//                geofenceCache.remove(gm.getId());
+                notifyOnEvent(gm, transitionType);
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
-                notifyOnEvent(gm);
-//                String wifiNetwork = gm.getWifiNetwork();
-//                if(!TextUtils.isEmpty(wifiNetwork) && currentNetwork == Network.WIFI && currentNetwork.getName().equals(wifiNetwork)) {
-//                    notifyOnMessage(gm, "exit but wifi connected");
-//                } else {
-//                    notifyOnEvent(gm);
-//                    geofenceCache.remove(gm.getId());
-//                }
+                String wifiNetwork = gm.getWifiNetwork();
+                if(currentNetwork != null && currentNetwork == Network.WIFI && currentNetwork.getName() != null) {
+                    if(!wifiNetwork.equals(currentNetwork.getName())) {
+                        notifyOnEvent(gm, transitionType);
+                    } else {
+                        notifyOnMessage(gm, "You are leaving geo fence but still in wifi zone");
+                    }
+                } else {
+                    notifyOnEvent(gm, transitionType);
+                }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
-                notifyOnMessage(gm, "you are inside geofence");
+                notifyOnEvent(gm, transitionType);
                 break;
             default:
                 break;
@@ -299,10 +303,10 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
     }
 
-    private void notifyOnEvent(GeofenceModel m) {
+    private void notifyOnEvent(GeofenceModel m, int transitionType) {
         synchronized (listeners) {
             for (GeofenceEventListener l : listeners) {
-                l.onEvent(m);
+                l.onEvent(m, transitionType);
             }
         }
     }
@@ -347,4 +351,17 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
     }
 
+    /**
+     * test method dont use it!!!!
+     */
+    public void testClearAllGeofences() {
+        List<String> deleted = new ArrayList<>();
+        for(int i = 0; i < 500; i++) {
+            String id = "m" + i;
+            deleted.add(id);
+        }
+        if(mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+            LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, deleted);
+        }
+    }
 }

@@ -45,6 +45,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.android.gms.plus.PlusOneDummyView.TAG;
 
@@ -59,9 +60,9 @@ public class MapPresenter {
 
     public final static String GEO_FENCE_MARKER_TITLE = "Tap on marker for geo fence action";
     public final static float CURRENT_LOCATION_DEFAULT_ZOOM = 18.0f;
-    public final static double DEFAULT_GEOFENCE_RADIUS = 20.d;
+    public final static double MIN_GEOFENCE_RADIUS = 30.d;
 
-    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
+    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 8000;
     private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
 
     private volatile boolean mRequestingLocationUpdates;
@@ -74,8 +75,9 @@ public class MapPresenter {
     private Location currentLocation;
     private boolean mapReady;
     private GoogleMap mGoogleMap;
-    private Map<String, GeoFenceUIModel> uiGeoModels = new HashMap<>();
+    private Map<String, GeoFenceUIModel> uiGeoModels = new ConcurrentHashMap<>();
     private GeofenceController geoController;
+    private GeofenceDataSource geofenceDataSource;
     private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
 
     private boolean isCameraAutoMovingMode = true;
@@ -91,6 +93,7 @@ public class MapPresenter {
         activity = a;
         geoController = GeofenceControllerImpl.getInstance();
         geoController.registerListener(geofenceEventListener);
+        geofenceDataSource = GeofenceDataSourceImpl.getInstance();
         currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
         activity.registerReceiver(networkStateReceiver, GeofenceControllerImpl.intentFilter);
@@ -146,6 +149,12 @@ public class MapPresenter {
 
                 }
             });
+        } else {
+            activity.showSnackbar("there is no wifi connection", "", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                }
+            });
         }
     }
 
@@ -186,11 +195,17 @@ public class MapPresenter {
 
     private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
         @Override
-        public void onEvent(final GeofenceModel geofenceModel) {
+        public void onEvent(final GeofenceModel geofenceModel, final int transitionType) {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    activity.showMessage("OnEvent:" + GeofenceUtil.getTransionName(geofenceModel.getTransitionType()) + " Geo fence:" + geofenceModel.getId() + " wifi:" + geofenceModel.getWifiNetwork());
+                    activity.showSnackbar("YOU ARE" + GeofenceUtil.getTransionName(transitionType) + " GEOFENCE:", geofenceModel.getName() + "(id=" + geofenceModel.getId() + ")", new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+
+                        }
+                    });
+                    // TODO: 08.08.2017 create notification
                 }
             });
         }
@@ -217,6 +232,7 @@ public class MapPresenter {
                     Circle circle = activity.displayCircle(uiModel.marker.getPosition(), uiModel.radius);
                     uiModel.geoCircle = circle;
                     activity.animateCameraToLatLng(uiModel.marker.getPosition(), CURRENT_LOCATION_DEFAULT_ZOOM);
+//                    GeofenceControllerImpl.getInstance().testClearAllGeofences();
                 }
             });
         }
@@ -235,13 +251,29 @@ public class MapPresenter {
         }
 
         @Override
-        public void onGeofenceDeletedSuccess(List<String> ids) {
-
+        public void onGeofenceDeletedSuccess(final List<String> ids) {
+            mainThreadHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    activity.hideProgress();
+                    String id = ids.get(0);
+                    if(id == null) return;
+                    GeoFenceUIModel uiModel = uiGeoModels.get(id);
+                    activity.removeMarker(uiModel.marker);
+                    if(uiModel.geoCircle != null) activity.removeCircle(uiModel.geoCircle);
+                    uiGeoModels.remove(id);
+                }
+            });
         }
 
         @Override
         public void onGeofenceDeletedFailed(List<String> ids) {
-
+            mainThreadHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    activity.showMessage("geofence delete error");
+                }
+            });
         }
     };
 
@@ -255,9 +287,12 @@ public class MapPresenter {
 
     public boolean onMarkerClick(final Marker marker) {
         final GeoFenceUIModel uiModel = uiGeoModels.get(marker.getId());
-        Network network = geoController.getCurrentNetwork();
-        if(network != null && network.getName() != null) {
-            uiModel.networkName = network.getName();
+        if(uiModel == null) {
+            activity.removeMarker(marker);
+        }
+
+        if(currentNetwork != null && currentNetwork.getName() != null) {
+            uiModel.networkName = currentNetwork.getName();
         }
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
@@ -268,10 +303,10 @@ public class MapPresenter {
             }
 
             @Override
-            public void onDeleteGeofence() {
-                activity.removeMarker(uiModel.marker);
-                if(uiModel.geoCircle != null) activity.removeCircle(uiModel.geoCircle);
-                uiGeoModels.remove(marker.getId());
+            public void onDeleteGeofence(GeoFenceUIModel model) {
+                GeofenceModel geoModel = geofenceDataSource.getGeofenceById(model.marker.getId());
+                activity.showProgress();
+                geoController.removeGeoFence(geoModel);
             }
         });
         return true;
@@ -280,7 +315,7 @@ public class MapPresenter {
 
     public void onMapLongClick(LatLng latLng) {
         Marker marker = activity.displayMarker(latLng, GEO_FENCE_MARKER_TITLE, true);
-        GeoFenceUIModel uiModel = new GeoFenceUIModel();
+        GeoFenceUIModel uiModel = new GeoFenceUIModel(marker);
         uiModel.marker = marker;
         uiGeoModels.put(marker.getId(), uiModel);
     }
@@ -418,12 +453,19 @@ public class MapPresenter {
 
 
     public static class GeoFenceUIModel {
-        public Marker marker;
+        private Marker marker;
         public double radius;
         public Circle geoCircle;
-//        public GeofenceModel geofenceModel;
         public String networkName;
         public String geofenceName;
+
+        public GeoFenceUIModel(Marker marker) {
+            this.marker = marker;
+        }
+
+        public Marker getMarker() {
+            return marker;
+        }
     }
 
 }

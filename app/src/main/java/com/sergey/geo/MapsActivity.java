@@ -193,6 +193,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
         final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
 
+        TextView cancel = (TextView) popupView.findViewById(R.id.cancel);
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hidePopupMenuForMarker();
+            }
+        });
+
         TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
         final EditText createGeofenceRadius = (EditText) popupView.findViewById(R.id.geofence_radius);
 
@@ -217,6 +225,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         createGeofenceRadius.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                createGeofenceRadius.setError(null);
                 InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 imm.showSoftInput(createGeofenceRadius, InputMethodManager.SHOW_IMPLICIT);
             }
@@ -226,19 +235,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onClick(View v) {
                 popupWindow.dismiss();
                 int radius = Integer.valueOf(createGeofenceRadius.getEditableText().toString());
-                String name = String.valueOf(geofenceName.getEditableText().toString());
-                model.radius = radius;
-                model.geofenceName = name;
-                listener.onCreateGeofence(model);
-//                listener.onCreateGeofence(Integer.valueOf(createGeofenceRadius.getEditableText().toString()));
+                if(radius < MapPresenter.MIN_GEOFENCE_RADIUS) {
+                    createGeofenceRadius.setError("value must be more than 30");
+                } else {
+                    String name = String.valueOf(geofenceName.getEditableText().toString());
+                    model.radius = radius;
+                    model.geofenceName = name;
+                    listener.onCreateGeofence(model);
+                }
+
             }
         });
         TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
         deleteGeofence.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                popupWindow.dismiss();
-                listener.onDeleteGeofence();
+                hidePopupMenuForMarker();
+                listener.onDeleteGeofence(model);
             }
         });
 
@@ -264,11 +277,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void updatePopupForMarker(MapPresenter.GeoFenceUIModel model) {
         if (mPopupWindow != null) {
             // marker is visible
-            if (mMap.getProjection().getVisibleRegion().latLngBounds.contains(model.marker.getPosition())) {
+            if (mMap.getProjection().getVisibleRegion().latLngBounds.contains(model.getMarker().getPosition())) {
                 if (!mPopupWindow.isShowing()) {
                     mPopupWindow.showAtLocation(contentView, Gravity.NO_GRAVITY, 0, 0);
                 }
-                Point p = mMap.getProjection().toScreenLocation(model.marker.getPosition());
+                Point p = mMap.getProjection().toScreenLocation(model.getMarker().getPosition());
                 mPopupWindow.update(p.x - mPoupMenuWidth / 2, p.y - mPopupMenuHeight + 100, -1, -1);
             } else { // marker outside screen
                 mPopupWindow.dismiss();
@@ -318,16 +331,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public interface PopupMenuListener {
 //        void onCreateGeofence(int radius);
         void onCreateGeofence(MapPresenter.GeoFenceUIModel model);
-        void onDeleteGeofence();
+        void onDeleteGeofence(MapPresenter.GeoFenceUIModel model);
 
     }
-
-
-
-
-
-
-
 
 
     public void animateCameraToLocation(Location location, float zoom) {

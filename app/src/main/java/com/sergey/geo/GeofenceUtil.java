@@ -24,9 +24,9 @@ public class GeofenceUtil {
     public static GeofenceModel createGeofenceModelFromUIModel(MapPresenter.GeoFenceUIModel uiModel) {
         if(uiModel == null) return null;
         GeofenceModel geoModel = new GeofenceModel();
-        geoModel.setId(uiModel.marker.getId());
-        geoModel.setLatitude(uiModel.marker.getPosition().latitude);
-        geoModel.setLongitude(uiModel.marker.getPosition().longitude);
+        geoModel.setId(uiModel.getMarker().getId());
+        geoModel.setLatitude(uiModel.getMarker().getPosition().latitude);
+        geoModel.setLongitude(uiModel.getMarker().getPosition().longitude);
         geoModel.setRadius((float) uiModel.radius);
         geoModel.setTransitionType(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT | Geofence.GEOFENCE_TRANSITION_DWELL);
         geoModel.setWifiNetwork(uiModel.networkName);

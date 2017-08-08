@@ -8,7 +8,7 @@ import java.util.List;
  */
 
 public interface GeofenceEventListener {
-    void onEvent(GeofenceModel geofenceModel);
+    void onEvent(GeofenceModel geofenceModel, int transitionType);
     void onMessage(String message);
     void onGeofenceAddedSuccess(List<String> ids);
     void onGeofenceAddedFailed(List<String> ids);
