@@ -81,7 +81,7 @@ public class GeofenceModel {
                 .setRequestId(id)
                 .setTransitionTypes(transitionType)
                 .setCircularRegion(latitude, longitude, radius)
-                .setExpirationDuration(EXPIRATION_TIME)
+                .setExpirationDuration(Geofence.NEVER_EXPIRE)
                 .setLoiteringDelay(60)
                 .build();
     }

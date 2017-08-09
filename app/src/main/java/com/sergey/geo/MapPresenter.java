@@ -60,9 +60,9 @@ public class MapPresenter {
 
     public final static String GEO_FENCE_MARKER_TITLE = "Tap on marker for geo fence action";
     public final static float CURRENT_LOCATION_DEFAULT_ZOOM = 18.0f;
-    public final static double MIN_GEOFENCE_RADIUS = 30.d;
+    public final static double MIN_GEOFENCE_RADIUS = 10.d;
 
-    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 8000;
+    private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 6000;
     private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
 
     private volatile boolean mRequestingLocationUpdates;
@@ -113,6 +113,10 @@ public class MapPresenter {
         }
     }
 
+    public void onPause() {
+        stopLocationUpdates();
+    }
+
     public void onStop() {
         activity.hidePopupMenuForMarker();
     }
@@ -120,7 +124,6 @@ public class MapPresenter {
 
 
     public void onDestroy() {
-        stopLocationUpdates();
         mainThreadHandler.removeCallbacksAndMessages(null);
         activity.unregisterReceiver(networkStateReceiver);
         geoController.unregisterListener(geofenceEventListener);
@@ -199,13 +202,14 @@ public class MapPresenter {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    activity.showSnackbar("YOU ARE" + GeofenceUtil.getTransionName(transitionType) + " GEOFENCE:", geofenceModel.getName() + "(id=" + geofenceModel.getId() + ")", new View.OnClickListener() {
+                    String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType);
+                    String m2 = " GEOFENCE:" + geofenceModel.getName() + "(id=" + geofenceModel.getId() + ")";
+                    activity.showMessage(m1 + m2);
+                    activity.showSnackbar(m1, m2, new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
-
                         }
                     });
-                    // TODO: 08.08.2017 create notification
                 }
             });
         }
@@ -271,6 +275,7 @@ public class MapPresenter {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
+                    activity.hideProgress();
                     activity.showMessage("geofence delete error");
                 }
             });
@@ -297,16 +302,21 @@ public class MapPresenter {
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
             public void onCreateGeofence(GeoFenceUIModel model) {
-                GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
                 activity.showProgress();
+                GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
                 geoController.addGeoFence(geoModel);
             }
 
             @Override
             public void onDeleteGeofence(GeoFenceUIModel model) {
-                GeofenceModel geoModel = geofenceDataSource.getGeofenceById(model.marker.getId());
-                activity.showProgress();
-                geoController.removeGeoFence(geoModel);
+                GeofenceModel geoModel = geofenceDataSource.getGeofenceById(uiModel.marker.getId());
+                if(geoModel != null) {
+                    activity.showProgress();
+                    geoController.removeGeoFence(geoModel);
+                } else {
+                    activity.removeMarker(uiModel.marker);
+                    if(uiModel.geoCircle != null) activity.removeCircle(uiModel.geoCircle);
+                }
             }
         });
         return true;

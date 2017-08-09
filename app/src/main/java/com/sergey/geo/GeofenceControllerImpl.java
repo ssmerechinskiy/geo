@@ -52,7 +52,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private Map<String, GeofenceModel> deletingInProcessGeoIds = new ConcurrentHashMap<>();
     private volatile boolean isDeletingGeofencesInProgress = false;
 
-    private Network currentNetwork;
+    private volatile Network currentNetwork;
 
     public static GeofenceControllerImpl getInstance() {
         return instance;
