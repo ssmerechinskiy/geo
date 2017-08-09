@@ -8,8 +8,8 @@ import com.google.android.gms.location.Geofence;
 
 public class GeofenceModel {
 
-    public final static double USE_WIFI_MIN_RADIUS = 19.0d;
-    public final static double USE_WITOUT_WIFI_MIN_RADIUS = 99.0d;
+    public final static double USE_WIFI_MIN_RADIUS = 15.0d;
+    public final static double USE_WITHOUT_WIFI_MIN_RADIUS = 100.0d;
 
     private static final int EXPIRATION_TIME = 600000;
 
@@ -102,7 +102,7 @@ public class GeofenceModel {
             if(radius >= USE_WIFI_MIN_RADIUS) return true;
             else return false;
         } else {
-            if(radius >= USE_WITOUT_WIFI_MIN_RADIUS) return true;
+            if(radius >= USE_WITHOUT_WIFI_MIN_RADIUS) return true;
             else return false;
         }
     }

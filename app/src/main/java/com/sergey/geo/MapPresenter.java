@@ -87,6 +87,8 @@ public class MapPresenter {
 
     private volatile Network currentNetwork;
 
+    private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
+
 
     public MapPresenter(MapsActivity a) {
         activity = a;
@@ -131,9 +133,10 @@ public class MapPresenter {
     public void onMapReady(GoogleMap googleMap) {
         mapReady = true;
         mGoogleMap = googleMap;
+
         try {
             mGoogleMap.setMyLocationEnabled(true);
-            if(currentLocation != null) activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+            if(currentLocation != null) activity.animateCameraToLocation(currentLocation, currentZoom);
             currentNetwork = NetworkUtil.updateNetworkInfo();
             showNetworkStatusSnackbar();
         } catch (SecurityException e) {
@@ -143,15 +146,16 @@ public class MapPresenter {
     }
 
     private void showNetworkStatusSnackbar() {
+        String title = "Wifi status:";
         if(currentNetwork != null && currentNetwork.getName() != null) {
-            activity.showSnackbar("Current Wifi Network:", currentNetwork.getName().toString(), new View.OnClickListener() {
+            activity.showSnackbar(title, currentNetwork.getName().toString(), new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
 
                 }
             });
         } else {
-            activity.showSnackbar("there is no wifi connection", "", new View.OnClickListener() {
+            activity.showSnackbar(title, "Not connected", new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                 }
@@ -180,7 +184,8 @@ public class MapPresenter {
             super.onLocationResult(locationResult);
             currentLocation = locationResult.getLastLocation();
             if (isCameraAutoMovingMode && currentLocation != null) {
-                activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+                currentZoom = mGoogleMap.getCameraPosition().zoom;
+                activity.animateCameraToLocation(currentLocation, currentZoom);
             }
             displayCurrentLocation();
         }
@@ -202,7 +207,7 @@ public class MapPresenter {
                 public void run() {
                     String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType);
                     String m2 = " GEOFENCE:" + geofenceModel.getName() + "(id=" + geofenceModel.getId() + ")";
-                    activity.showMessage(m1 + m2);
+//                    activity.showMessage(m1 + m2);
                     activity.showSnackbar(m1, m2, new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {

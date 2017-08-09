@@ -36,8 +36,7 @@
         <activity
             android:name=".MapsActivity"
             android:label="@string/title_activity_maps"
-            android:screenOrientation="portrait"
-            >
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -45,10 +44,9 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".GeofenceEventReceiver"
-            android:enabled="true"
-            android:exported="true"></receiver>
+        <service
+            android:name=".GeofenceIntentService"
+            android:exported="false"></service>
     </application>
 
 </manifest>

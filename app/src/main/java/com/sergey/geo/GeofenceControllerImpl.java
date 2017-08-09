@@ -316,6 +316,8 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         @Override
         public void onReceive(Context context, Intent intent) {
             currentNetwork = NetworkUtil.updateNetworkInfo();
+            // TODO: 09.08.2017 check geofence with current network name
+//            notifyOnMessage(gm, "You are entering to WIFI zone");
         }
     };
 
@@ -344,8 +346,8 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     }
 
     private PendingIntent getPendingIntent() {
-        Intent i = new Intent(GeoApp.getInstance(), GeofenceEventReceiver.class);
-        return PendingIntent.getBroadcast(GeoApp.getInstance(), 1, i, PendingIntent.FLAG_UPDATE_CURRENT);
+        Intent i = new Intent(GeoApp.getInstance().getBaseContext(), GeofenceIntentService.class);
+        return PendingIntent.getService(GeoApp.getInstance().getBaseContext(), 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     @Override

@@ -1,18 +1,12 @@
 package com.sergey.geo;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Point;
-import android.location.Criteria;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.support.annotation.NonNull;
 import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
@@ -23,20 +17,17 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
 
 
-import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
@@ -215,8 +206,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             geofenceRadius.setText(String.valueOf(GeofenceModel.USE_WIFI_MIN_RADIUS));
             errorRadiusMessage = "min radius with WIFI " + GeofenceModel.USE_WIFI_MIN_RADIUS + " meters";
         } else {
-            geofenceRadius.setText(String.valueOf(GeofenceModel.USE_WITOUT_WIFI_MIN_RADIUS));
-            errorRadiusMessage = "min radius without WIFI " + GeofenceModel.USE_WITOUT_WIFI_MIN_RADIUS + " meters";
+            geofenceRadius.setText(String.valueOf(GeofenceModel.USE_WITHOUT_WIFI_MIN_RADIUS));
+            errorRadiusMessage = "min radius without WIFI " + GeofenceModel.USE_WITHOUT_WIFI_MIN_RADIUS + " meters";
         }
 
         final String finalErrorRadiusMessage = errorRadiusMessage;
