@@ -41,8 +41,9 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private Context context;
     private List<GeofenceEventListener> listeners = new ArrayList<>();
-    private GoogleApiClient mGoogleApiClient;
+    private volatile GoogleApiClient mGoogleApiClient;
 
+    private ExecutorService requestExecutor = Executors.newSingleThreadExecutor();
     private ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
     private GeofenceDataSource geofenceDataSource = GeofenceDataSourceImpl.getInstance();
@@ -252,6 +253,53 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         }
     }
 
+    private void updateGAClientAndExecuteCommand(Runnable command, ExecutorService service) {
+        if(command == null) return;
+        if(mGoogleApiClient == null) {
+            Log.d(TAG, "addGeoFenceInternal:create client");
+            mGoogleApiClient = new GoogleApiClient.Builder(context)
+                    .addApi(LocationServices.API)
+                    .addConnectionCallbacks(GeofenceControllerImpl.this)
+                    .addOnConnectionFailedListener(GeofenceControllerImpl.this)
+                    .build();
+        }
+        if(mGoogleApiClient.isConnected()) {
+            Log.d(TAG, "addGeoFenceInternal:client is connected. trying add to service");
+            if(service != null && !service.isShutdown() && !service.isTerminated()) {
+                service.execute(command);
+            }
+            else {
+                new Thread(command).start();
+            }
+        } else {
+            if(!mGoogleApiClient.isConnecting()) {
+                Log.d(TAG, "addGeoFenceInternal:client is not connected. connecting");
+                mGoogleApiClient.connect();
+            }
+        }
+    }
+
+    private void deleteAllGeofencesFromService() {
+        updateGAClientAndExecuteCommand(new Runnable() {
+            @Override
+            public void run() {
+                List<String> ids = geofenceDataSource.getGeofencesIds();
+                LocationServices.GeofencingApi.removeGeofences(mGoogleApiClient, ids).setResultCallback(new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(@NonNull Status status) {
+                        if(mGoogleApiClient != null) {
+                            if(mGoogleApiClient.isConnected() || mGoogleApiClient.isConnecting()) {
+                                mGoogleApiClient.disconnect();
+                            } else {
+                                mGoogleApiClient = null;
+                            }
+                        }
+                    }
+                });
+            }
+        }, null);
+    }
+
     @Override
     public void onConnectionSuspended(int i) {
         Log.d(TAG, "onConnectionSuspended:" + String.valueOf(i));
@@ -273,10 +321,26 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     @Override
     public void onDestroy() {
+        shutdownExecutor(requestExecutor);
+        requestExecutor = null;
+        shutdownExecutor(resultExecutor);
+        resultExecutor = null;
         context.unregisterReceiver(networkStateReceiver);
-        geofenceDataSource.removeAllGeofences();
+
         addingInProcessGeoIds.clear();
+        deletingInProcessGeoIds.clear();
+
+        geofenceDataSource.removeAllGeofences();
+        deleteAllGeofencesFromService();
+
         context = null;
+    }
+
+    private void shutdownExecutor(ExecutorService service) {
+        if(service != null && !service.isShutdown()) {
+            service.shutdown();
+            service.shutdownNow();
+        }
     }
 
     private PendingIntent getPendingIntent() {
@@ -350,6 +414,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
             }
         }
     }
+
 
     /**
      * test method dont use it!!!!

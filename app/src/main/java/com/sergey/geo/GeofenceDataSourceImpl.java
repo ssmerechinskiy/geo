@@ -28,6 +28,11 @@ public class GeofenceDataSourceImpl implements GeofenceDataSource {
     }
 
     @Override
+    public List<String> getGeofencesIds() {
+        return new ArrayList<>(geofenceCache.keySet());
+    }
+
+    @Override
     public void saveGeofences(List<GeofenceModel> models) {
         if(models == null) return;
         for(GeofenceModel m : models) {

@@ -60,7 +60,6 @@ public class MapPresenter {
 
     public final static String GEO_FENCE_MARKER_TITLE = "Tap on marker for geo fence action";
     public final static float CURRENT_LOCATION_DEFAULT_ZOOM = 18.0f;
-    public final static double MIN_GEOFENCE_RADIUS = 10.d;
 
     private static final long UPDATE_INTERVAL_IN_MILLISECONDS = 6000;
     private static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS = UPDATE_INTERVAL_IN_MILLISECONDS / 2;
@@ -86,7 +85,7 @@ public class MapPresenter {
     private BitmapDescriptor currentLocationBitmapDescriptor;
     private Marker currentLocationMarker;
 
-    private Network currentNetwork;
+    private volatile Network currentNetwork;
 
 
     public MapPresenter(MapsActivity a) {
@@ -121,12 +120,11 @@ public class MapPresenter {
         activity.hidePopupMenuForMarker();
     }
 
-
-
     public void onDestroy() {
         mainThreadHandler.removeCallbacksAndMessages(null);
         activity.unregisterReceiver(networkStateReceiver);
         geoController.unregisterListener(geofenceEventListener);
+        geoController.onDestroy();
         activity = null;
     }
 
@@ -296,12 +294,13 @@ public class MapPresenter {
             activity.removeMarker(marker);
         }
 
-        if(currentNetwork != null && currentNetwork.getName() != null) {
+        if(currentNetwork != null && currentNetwork.getName() != null && uiModel != null) {
             uiModel.networkName = currentNetwork.getName();
         }
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
             public void onCreateGeofence(GeoFenceUIModel model) {
+                if(model == null) return;
                 activity.showProgress();
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
                 geoController.addGeoFence(geoModel);
@@ -309,6 +308,7 @@ public class MapPresenter {
 
             @Override
             public void onDeleteGeofence(GeoFenceUIModel model) {
+                if(model == null) return;
                 GeofenceModel geoModel = geofenceDataSource.getGeofenceById(uiModel.marker.getId());
                 if(geoModel != null) {
                     activity.showProgress();

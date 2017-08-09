@@ -8,6 +8,9 @@ import com.google.android.gms.location.Geofence;
 
 public class GeofenceModel {
 
+    public final static double USE_WIFI_MIN_RADIUS = 19.0d;
+    public final static double USE_WITOUT_WIFI_MIN_RADIUS = 99.0d;
+
     private static final int EXPIRATION_TIME = 600000;
 
     private String id;
@@ -76,6 +79,14 @@ public class GeofenceModel {
         this.addedToGeoService = addedToGeoService;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public Geofence newGeofence() {
         return new Geofence.Builder()
                 .setRequestId(id)
@@ -86,11 +97,13 @@ public class GeofenceModel {
                 .build();
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
+    public static boolean validateRadius(double radius, boolean useWifi) {
+        if(useWifi) {
+            if(radius >= USE_WIFI_MIN_RADIUS) return true;
+            else return false;
+        } else {
+            if(radius >= USE_WITOUT_WIFI_MIN_RADIUS) return true;
+            else return false;
+        }
     }
 }

@@ -15,6 +15,7 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Display;
 import android.view.Gravity;
@@ -199,28 +200,50 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         View popupView = LayoutInflater.from(this).inflate(R.layout.marker_popup_menu, null);
         final PopupWindow popupWindow = new PopupWindow(popupView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
 
+        View createContainer = popupView.findViewById(R.id.create_container);
+        TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
+        final EditText geofenceRadius = (EditText) popupView.findViewById(R.id.geofence_radius);
+        final EditText geofenceName = (EditText)  popupView.findViewById(R.id.geofence_name);
+        View createNetworkContainer = popupView.findViewById(R.id.create_geofence_network_item);
+        final TextView networkName = (TextView) popupView.findViewById(R.id.geofence_network_name);
+        TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
         TextView cancel = (TextView) popupView.findViewById(R.id.cancel);
-        cancel.setOnClickListener(new View.OnClickListener() {
+
+        final boolean useWifi = !TextUtils.isEmpty(model.networkName) ? true : false;
+        String errorRadiusMessage = "";
+        if(useWifi) {
+            geofenceRadius.setText(String.valueOf(GeofenceModel.USE_WIFI_MIN_RADIUS));
+            errorRadiusMessage = "min radius with WIFI " + GeofenceModel.USE_WIFI_MIN_RADIUS + " meters";
+        } else {
+            geofenceRadius.setText(String.valueOf(GeofenceModel.USE_WITOUT_WIFI_MIN_RADIUS));
+            errorRadiusMessage = "min radius without WIFI " + GeofenceModel.USE_WITOUT_WIFI_MIN_RADIUS + " meters";
+        }
+
+        final String finalErrorRadiusMessage = errorRadiusMessage;
+        createGeofence.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                hidePopupMenuForMarker();
+                double radius = Double.valueOf(geofenceRadius.getEditableText().toString());
+                if(!GeofenceModel.validateRadius(radius, useWifi)) {
+                    geofenceRadius.setError(finalErrorRadiusMessage);
+                } else {
+                    String name = String.valueOf(geofenceName.getEditableText().toString());
+                    model.radius = radius;
+                    model.geofenceName = name;
+                    listener.onCreateGeofence(model);
+                    hidePopupMenuForMarker();
+                }
             }
         });
 
-        TextView createGeofence = (TextView) popupView.findViewById(R.id.create_geofence);
-        final EditText createGeofenceRadius = (EditText) popupView.findViewById(R.id.geofence_radius);
-
-        final EditText geofenceName = (EditText)  popupView.findViewById(R.id.geofence_name);
         geofenceName.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                imm.showSoftInput(createGeofenceRadius, InputMethodManager.SHOW_IMPLICIT);
+                imm.showSoftInput(geofenceRadius, InputMethodManager.SHOW_IMPLICIT);
             }
         });
 
-        View createNetworkContainer = popupView.findViewById(R.id.create_geofence_network_item);
-        final TextView networkName = (TextView) popupView.findViewById(R.id.geofence_network_name);
         if(model.networkName != null) {
             createNetworkContainer.setVisibility(View.VISIBLE);
             networkName.setText(model.networkName);
@@ -228,31 +251,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             createNetworkContainer.setVisibility(View.GONE);
         }
 
-        createGeofenceRadius.setOnClickListener(new View.OnClickListener() {
+        geofenceRadius.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                createGeofenceRadius.setError(null);
+                geofenceRadius.setError(null);
                 InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                imm.showSoftInput(createGeofenceRadius, InputMethodManager.SHOW_IMPLICIT);
+                imm.showSoftInput(geofenceRadius, InputMethodManager.SHOW_IMPLICIT);
             }
         });
-        createGeofence.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                popupWindow.dismiss();
-                int radius = Integer.valueOf(createGeofenceRadius.getEditableText().toString());
-                if(radius < MapPresenter.MIN_GEOFENCE_RADIUS) {
-                    createGeofenceRadius.setError("value must be more than 30");
-                } else {
-                    String name = String.valueOf(geofenceName.getEditableText().toString());
-                    model.radius = radius;
-                    model.geofenceName = name;
-                    listener.onCreateGeofence(model);
-                }
 
-            }
-        });
-        TextView deleteGeofence = (TextView) popupView.findViewById(R.id.delete_geofence);
         deleteGeofence.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -261,7 +268,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
 
-        View createContainer = popupView.findViewById(R.id.create_container);
+        cancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hidePopupMenuForMarker();
+            }
+        });
+
         if(model.geoCircle == null) {
             createContainer.setVisibility(View.VISIBLE);
         } else {

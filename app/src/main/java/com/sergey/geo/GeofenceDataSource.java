@@ -9,6 +9,7 @@ import java.util.List;
 public interface GeofenceDataSource {
     GeofenceModel getGeofenceById(String id);
     List<GeofenceModel> getGeofences();
+    List<String> getGeofencesIds();
     void saveGeofences(List<GeofenceModel> models);
     void removeGeofence(String id);
     void removeGeofences(List<String> ids);
