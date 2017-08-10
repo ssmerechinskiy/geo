@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface GeofenceDataSource {
     GeofenceModel getGeofenceById(String id);
+    GeofenceModel getGeofenceByWifiNetworkName(String id);
     List<GeofenceModel> getGeofences();
     List<String> getGeofencesIds();
     void saveGeofences(List<GeofenceModel> models);

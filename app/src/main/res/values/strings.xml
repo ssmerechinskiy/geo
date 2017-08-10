@@ -4,4 +4,7 @@
     <string name="permission_rationale">Location permission is needed for core functionality</string>
     <string name="permission_denied_explanation">Permission was denied, but is needed for core functionality.</string>
     <string name="settings">Settings</string>
+    <string name="tip_1"> - Long tap to create geofence center</string>
+    <string name="tip_2"> - Tap on marker to create geofence</string>
+    <string name="wifi_status_title">WIFI status</string>
 </resources>

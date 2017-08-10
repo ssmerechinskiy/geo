@@ -75,7 +75,8 @@ public class MapPresenter {
     private boolean mapReady;
     private GoogleMap mGoogleMap;
     private Map<String, GeoFenceUIModel> uiGeoModels = new ConcurrentHashMap<>();
-    private GeofenceController geoController;
+//    private GeofenceController geoController;
+    private BusinessLogicController businessLogicController;
     private GeofenceDataSource geofenceDataSource;
     private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
 
@@ -89,18 +90,23 @@ public class MapPresenter {
 
     private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
 
+    private final String wifiStatusTitle;
 
     public MapPresenter(MapsActivity a) {
         activity = a;
-        geoController = GeofenceControllerImpl.getInstance();
-        geoController.registerListener(geofenceEventListener);
+//        geoController = GeofenceControllerImpl.getInstance();
+//        geoController.registerListener(geofenceEventListener);
+        businessLogicController = BusinessLogicController.getInstance();
+        businessLogicController.registerListener(geofenceEventListener);
         geofenceDataSource = GeofenceDataSourceImpl.getInstance();
         currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
-        activity.registerReceiver(networkStateReceiver, GeofenceControllerImpl.intentFilter);
+        activity.registerReceiver(networkStateReceiver, BusinessLogicController.intentFilter);
+        wifiStatusTitle = activity.getString(R.string.wifi_status_title);
     }
 
     public void onStart() {
+        activity.showTipsDialog();
     }
 
     public void onResume() {
@@ -125,8 +131,10 @@ public class MapPresenter {
     public void onDestroy() {
         mainThreadHandler.removeCallbacksAndMessages(null);
         activity.unregisterReceiver(networkStateReceiver);
-        geoController.unregisterListener(geofenceEventListener);
-        geoController.onDestroy();
+//        geoController.unregisterListener(geofenceEventListener);
+//        geoController.onDestroy();
+        businessLogicController.unregisterListener(geofenceEventListener);
+        businessLogicController.onDestroy();
         activity = null;
     }
 
@@ -139,6 +147,7 @@ public class MapPresenter {
             if(currentLocation != null) activity.animateCameraToLocation(currentLocation, currentZoom);
             currentNetwork = NetworkUtil.updateNetworkInfo();
             showNetworkStatusSnackbar();
+
         } catch (SecurityException e) {
             activity.showMessage("Permissions not granted");
             requestPermissions();
@@ -146,16 +155,15 @@ public class MapPresenter {
     }
 
     private void showNetworkStatusSnackbar() {
-        String title = "Wifi status:";
         if(currentNetwork != null && currentNetwork.getName() != null) {
-            activity.showSnackbar(title, currentNetwork.getName().toString(), new View.OnClickListener() {
+            activity.showSnackbar(wifiStatusTitle, currentNetwork.getName().toString(), new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
 
                 }
             });
         } else {
-            activity.showSnackbar(title, "Not connected", new View.OnClickListener() {
+            activity.showSnackbar(wifiStatusTitle, "Not connected", new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                 }
@@ -218,7 +226,7 @@ public class MapPresenter {
         }
 
         @Override
-        public void onMessage(final String message) {
+        public void onMessage(final GeofenceModel geofenceModel, final String message) {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -308,7 +316,8 @@ public class MapPresenter {
                 if(model == null) return;
                 activity.showProgress();
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
-                geoController.addGeoFence(geoModel);
+//                geoController.addGeoFence(geoModel);
+                businessLogicController.addGeoFence(geoModel);
             }
 
             @Override
@@ -317,7 +326,8 @@ public class MapPresenter {
                 GeofenceModel geoModel = geofenceDataSource.getGeofenceById(uiModel.marker.getId());
                 if(geoModel != null) {
                     activity.showProgress();
-                    geoController.removeGeoFence(geoModel);
+//                    geoController.removeGeoFence(geoModel);
+                    businessLogicController.removeGeoFence(geoModel);
                 } else {
                     activity.removeMarker(uiModel.marker);
                     if(uiModel.geoCircle != null) activity.removeCircle(uiModel.geoCircle);

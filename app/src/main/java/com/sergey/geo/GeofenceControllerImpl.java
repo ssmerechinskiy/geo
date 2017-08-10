@@ -37,7 +37,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private static GeofenceControllerImpl instance = new GeofenceControllerImpl();
 
-    public final static IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
+//    public final static IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
     private Context context;
     private List<GeofenceEventListener> listeners = new ArrayList<>();
@@ -53,7 +53,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private Map<String, GeofenceModel> deletingInProcessGeoIds = new ConcurrentHashMap<>();
     private volatile boolean isDeletingGeofencesInProgress = false;
 
-    private volatile Network currentNetwork;
+//    private volatile Network currentNetwork;
 
     public static GeofenceControllerImpl getInstance() {
         return instance;
@@ -64,8 +64,8 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     public void init(Context c) {
         context = c;
-        context.registerReceiver(networkStateReceiver, intentFilter);
-        currentNetwork = NetworkUtil.updateNetworkInfo();
+//        context.registerReceiver(networkStateReceiver, intentFilter);
+//        currentNetwork = NetworkUtil.updateNetworkInfo();
     }
 
     @Override
@@ -222,16 +222,17 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                 notifyOnEvent(gm, transitionType);
                 break;
             case Geofence.GEOFENCE_TRANSITION_EXIT:
-                String wifiNetwork = gm.getWifiNetwork();
-                if(currentNetwork != null && currentNetwork == Network.WIFI && currentNetwork.getName() != null) {
-                    if(!wifiNetwork.equals(currentNetwork.getName())) {
-                        notifyOnEvent(gm, transitionType);
-                    } else {
-                        notifyOnMessage(gm, "You are leaving geo fence but still in wifi zone");
-                    }
-                } else {
-                    notifyOnEvent(gm, transitionType);
-                }
+                notifyOnEvent(gm, transitionType);
+//                String wifiNetwork = gm.getWifiNetwork();
+//                if(currentNetwork != null && currentNetwork == Network.WIFI && currentNetwork.getName() != null) {
+//                    if(!wifiNetwork.equals(currentNetwork.getName())) {
+//                        notifyOnEvent(gm, transitionType);
+//                    } else {
+//                        notifyOnMessage(gm, "You are leaving geo fence but still in wifi zone");
+//                    }
+//                } else {
+//                    notifyOnEvent(gm, transitionType);
+//                }
                 break;
             case Geofence.GEOFENCE_TRANSITION_DWELL:
                 notifyOnEvent(gm, transitionType);
@@ -312,14 +313,14 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         notifyOnMessage(null, "onConnectionFailed:" + connectionResult.getErrorMessage());
     }
 
-    private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            currentNetwork = NetworkUtil.updateNetworkInfo();
-            // TODO: 09.08.2017 check geofence with current network name
-//            notifyOnMessage(gm, "You are entering to WIFI zone");
-        }
-    };
+//    private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
+//        @Override
+//        public void onReceive(Context context, Intent intent) {
+//            currentNetwork = NetworkUtil.updateNetworkInfo();
+//            // TODO: 09.08.2017 check geofence with current network name
+////            notifyOnMessage(gm, "You are entering to WIFI zone");
+//        }
+//    };
 
     @Override
     public void onDestroy() {
@@ -327,12 +328,10 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         requestExecutor = null;
         shutdownExecutor(resultExecutor);
         resultExecutor = null;
-        context.unregisterReceiver(networkStateReceiver);
+//        context.unregisterReceiver(networkStateReceiver);
 
         addingInProcessGeoIds.clear();
         deletingInProcessGeoIds.clear();
-
-        geofenceDataSource.removeAllGeofences();
         deleteAllGeofencesFromService();
 
         context = null;
@@ -350,10 +349,6 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
         return PendingIntent.getService(GeoApp.getInstance().getBaseContext(), 0, i, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
-    @Override
-    public Network getCurrentNetwork() {
-        return currentNetwork;
-    }
 
     @Override
     public void registerListener(GeofenceEventListener listener) {
@@ -380,7 +375,7 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private void notifyOnMessage(GeofenceModel m, String message) {
         synchronized (listeners) {
             for (GeofenceEventListener l : listeners) {
-                l.onMessage(message);
+                l.onMessage(m, message);
             }
         }
     }

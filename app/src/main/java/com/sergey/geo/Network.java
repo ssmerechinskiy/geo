@@ -8,6 +8,7 @@ public enum Network {
 
     UNKNOWN(0), MOBILE_DATA(1), WIFI(2);
 
+    private String name;
     private int code;
 
     public String getName() {
@@ -17,8 +18,6 @@ public enum Network {
     public void setName(String name) {
         this.name = name;
     }
-
-    private String name;
 
     Network(int code) {
         this.code = code;

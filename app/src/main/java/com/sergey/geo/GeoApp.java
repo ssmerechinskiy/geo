@@ -18,6 +18,7 @@ public class GeoApp extends Application {
         super.onCreate();
         sInstance = this;
         GeofenceControllerImpl.getInstance().init(sInstance);
+        BusinessLogicController.getInstance().init(sInstance);
     }
 
     public static GeoApp getInstance() {

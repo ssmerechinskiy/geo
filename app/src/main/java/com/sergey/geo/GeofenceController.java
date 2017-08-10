@@ -13,5 +13,4 @@ public interface GeofenceController {
     void unregisterListener(GeofenceEventListener listener);
     void onGeofenceEvent(Intent intent);
     void onDestroy();
-    Network getCurrentNetwork();
 }
