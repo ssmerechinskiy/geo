@@ -1,4 +1,4 @@
-package com.sergey.geo;
+package com.sergey.geo.model;
 
 /**
  * Created by sober on 31.07.2017.

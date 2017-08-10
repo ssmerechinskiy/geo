@@ -1,4 +1,6 @@
-package com.sergey.geo;
+package com.sergey.geo.data;
+
+import com.sergey.geo.model.GeofenceModel;
 
 import java.util.List;
 
@@ -8,7 +10,7 @@ import java.util.List;
 
 public interface GeofenceDataSource {
     GeofenceModel getGeofenceById(String id);
-    GeofenceModel getGeofenceByWifiNetworkName(String id);
+    List<GeofenceModel> getGeofencesByWifiNetworkName(String id);
     List<GeofenceModel> getGeofences();
     List<String> getGeofencesIds();
     void saveGeofences(List<GeofenceModel> models);

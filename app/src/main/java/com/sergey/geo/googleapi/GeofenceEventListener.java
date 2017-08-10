@@ -1,6 +1,7 @@
-package com.sergey.geo;
+package com.sergey.geo.googleapi;
 
-import java.util.Collection;
+import com.sergey.geo.model.GeofenceModel;
+
 import java.util.List;
 
 /**

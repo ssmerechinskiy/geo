@@ -36,6 +36,7 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.sergey.geo.model.GeofenceModel;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener, GoogleMap.OnMyLocationButtonClickListener, GoogleMap.OnCameraMoveStartedListener {
     private final static String TAG = MapsActivity.class.getSimpleName();
@@ -218,8 +219,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onClick(View v) {
                 double radius = Double.valueOf(geofenceRadius.getEditableText().toString());
-                if(!GeofenceModel.validateRadius(radius, useWifi)) {
-                    geofenceRadius.setError(finalErrorRadiusMessage);
+                boolean radiusValidated = GeofenceModel.validateRadius(radius, useWifi);
+                boolean nameValidated = !TextUtils.isEmpty(geofenceName.getEditableText().toString());
+                if(!radiusValidated || !nameValidated) {
+                    hidePopupMenuForMarker();
+                    listener.onCreateGeofenceError("invalid params");
                 } else {
                     String name = String.valueOf(geofenceName.getEditableText().toString());
                     model.radius = radius;
@@ -227,12 +231,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     listener.onCreateGeofence(model);
                     hidePopupMenuForMarker();
                 }
+
             }
         });
 
         geofenceName.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                geofenceName.setError(null);
                 InputMethodManager imm =  (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 imm.showSoftInput(geofenceRadius, InputMethodManager.SHOW_IMPLICIT);
             }
@@ -344,6 +350,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public interface PopupMenuListener {
 //        void onCreateGeofence(int radius);
         void onCreateGeofence(MapPresenter.GeoFenceUIModel model);
+        void onCreateGeofenceError(String message);
         void onDeleteGeofence(MapPresenter.GeoFenceUIModel model);
 
     }

@@ -1,8 +1,9 @@
-package com.sergey.geo;
+package com.sergey.geo.googleapi;
 
 import android.app.IntentService;
 import android.content.Intent;
-import android.content.Context;
+
+import com.sergey.geo.googleapi.GeofenceControllerImpl;
 
 /**
  * An {@link IntentService} subclass for handling asynchronous task requests in

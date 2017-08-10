@@ -1,14 +1,26 @@
 package com.sergey.geo;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 
 import com.google.android.gms.location.Geofence;
+import com.sergey.geo.data.GeofenceDataSource;
+import com.sergey.geo.data.GeofenceDataSourceImpl;
+import com.sergey.geo.googleapi.GeofenceController;
+import com.sergey.geo.googleapi.GeofenceControllerImpl;
+import com.sergey.geo.googleapi.GeofenceEventListener;
+import com.sergey.geo.model.GeofenceModel;
+import com.sergey.geo.wifi.WifiController;
+import com.sergey.geo.wifi.WifiControllerImpl;
+import com.sergey.geo.wifi.WifiEventListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static com.sergey.geo.wifi.WifiController.WIFI_TRANSITION_ENTER;
+import static com.sergey.geo.wifi.WifiController.WIFI_TRANSITION_EXIT;
 
 /**
  * Created by sober on 10.08.2017.
@@ -17,14 +29,13 @@ import java.util.List;
 public class BusinessLogicController implements GeofenceController {
     private static BusinessLogicController instance = new BusinessLogicController();
     private Context context;
-    public final static IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
-    public final static int WIFI_TRANSITION_ENTER = 8;
-    public final static int WIFI_TRANSITION_EXIT = 16;
-
-    private volatile Network currentNetwork;
     private GeofenceController geoController;
     private GeofenceDataSource geofenceDataSource = GeofenceDataSourceImpl.getInstance();
+    private WifiController wifiController = WifiControllerImpl.getInstance();
+
+    private Map<String, Integer> geoEventMap = new ConcurrentHashMap<>();
+    private Map<String, Integer> wifiEventMap = new ConcurrentHashMap<>();
 
     private List<GeofenceEventListener> listeners = new ArrayList<>();
 
@@ -37,87 +48,63 @@ public class BusinessLogicController implements GeofenceController {
 
     public void init(Context c) {
         context = c;
-        context.registerReceiver(networkStateReceiver, intentFilter);
         geoController = GeofenceControllerImpl.getInstance();
-        currentNetwork = NetworkUtil.updateNetworkInfo();
         geoController.registerListener(geofenceEventListener);
+        wifiController.registerListener(wifiEventListener);
     }
 
-    private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
+
+    private WifiEventListener wifiEventListener = new WifiEventListener() {
         @Override
-        public void onReceive(Context context, Intent intent) {
-            Network previousNetwork = currentNetwork;
-            currentNetwork = NetworkUtil.updateNetworkInfo();
-            /** IF ENTER TO WIFI ZONE*/
-            if(currentNetwork != null && currentNetwork.getName() != null) {
-                /** IF WIFI EXIST*/
-                GeofenceModel m = getGeofenceWithWifi(currentNetwork.getName());
-                //check if this geofence already entered or not
-                boolean alreadyEnteredToGeo = alreadyEnteredToGeo(m);
-                if(m != null && alreadyEnteredToGeo) {
-                    notifyOnMessage(m, "You are entering to WIFI zone:" + currentNetwork.getName()
-                            + " but already located in Geo:" + m.getName() + " with this wifi");
-                    return;
-                }
-                if(m != null && !alreadyEnteredToGeo) {
-                    notifyOnEvent(m, Geofence.GEOFENCE_TRANSITION_ENTER);
-                    return;
-                }
-            } else {/** IF EXIT FROM WIFI ZONE*/
-                if(previousNetwork != null && previousNetwork.getName() != null) {
-                    GeofenceModel m = getGeofenceWithWifi(previousNetwork.getName());
-                    boolean stillInGeo = stillInGeo(m);
-                    if(m != null && stillInGeo) {
-                        notifyOnMessage(m, "You are leaving WIFI zone:" + previousNetwork.getName()
-                                + " but still located in Geo:" + m.getName() + " with this wifi");
-                        return;
-                    }
-                    if(m != null && !stillInGeo) {
-                        notifyOnEvent(m, Geofence.GEOFENCE_TRANSITION_EXIT);
-                        return;
-                    }
+        public void onEvent(List<GeofenceModel> models, int transitionType) {
+            for (GeofenceModel m : models) {
+                wifiEventMap.put(m.getId(), transitionType);
+                switch (transitionType) {
+                    case WIFI_TRANSITION_ENTER :
+                        if(insideGeo(m)) {
+                            notifyOnMessage(m, "You are entering to WIFI zone:" + m.getWifiNetwork()
+                                    + " but already located in Geo:" + m.getName() + " with this wifi");
+                        } else {
+                            notifyOnEvent(m, Geofence.GEOFENCE_TRANSITION_ENTER);
+                        }
+                        break;
+                    case WIFI_TRANSITION_EXIT :
+                        if(insideGeo(m)) {
+                            notifyOnMessage(m, "You are leaving WIFI zone:" + m.getWifiNetwork()
+                                    + " but still located in Geo:" + m.getName() + " with this wifi");
+                        } else {
+                            notifyOnEvent(m, Geofence.GEOFENCE_TRANSITION_EXIT);
+                        }
+                        break;
                 }
             }
         }
+
+        @Override
+        public void onMessage(GeofenceModel geofenceModel, String message) {
+
+        }
+
+        @Override
+        public void onGeofenceAddedSuccess(List<String> ids) {
+
+        }
+
+        @Override
+        public void onGeofenceAddedFailed(List<String> ids) {
+
+        }
+
+        @Override
+        public void onGeofenceDeletedSuccess(List<String> ids) {
+
+        }
+
+        @Override
+        public void onGeofenceDeletedFailed(List<String> ids) {
+
+        }
     };
-
-    //check methods for wifi broadcasting events
-    private GeofenceModel getGeofenceWithWifi(String wifiName) {
-        // TODO: 10.08.2017 get from data source
-        return null;
-    }
-
-    private boolean alreadyEnteredToGeo(GeofenceModel m) {
-        // TODO: 10.08.2017 get from last geo event map
-        return true;
-    }
-
-    private boolean stillInGeo(GeofenceModel m) {
-        // TODO: 10.08.2017 get from last geo event map
-        return true;
-    }
-
-
-    //check methods for google api client events
-    private boolean alreadyEnteredToWifi(GeofenceModel m) {
-        // TODO: 10.08.2017 get from last wifi event map
-        return false;
-    }
-
-    private boolean stillInWifiZone(GeofenceModel m) {
-        // TODO: 10.08.2017 get from current network state
-//        String wifiNetwork = geofenceModel.getWifiNetwork();
-//        if(currentNetwork != null && currentNetwork == Network.WIFI && currentNetwork.getName() != null) {
-//            if(!wifiNetwork.equals(currentNetwork.getName())) {
-//                notifyOnEvent(geofenceModel, transitionType);
-//            } else {
-//                notifyOnMessage(geofenceModel, "You are leaving geo fence but still in wifi zone");
-//            }
-//        } else {
-//            notifyOnEvent(geofenceModel, transitionType);
-//        }
-        return false;
-    }
 
     private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
         @Override
@@ -125,16 +112,17 @@ public class BusinessLogicController implements GeofenceController {
             if(geofenceModel == null) {
                 notifyOnMessage(null, "from geo controller get null object");
             }
+            geoEventMap.put(geofenceModel.getId(), transitionType);
             switch (transitionType) {
                 case Geofence.GEOFENCE_TRANSITION_ENTER:
-                    if(!alreadyEnteredToWifi(geofenceModel)) {
+                    if(!insideWifi(geofenceModel)) {
                         notifyOnEvent(geofenceModel, transitionType);
                     } else {
                         notifyOnMessage(geofenceModel, "You are entered in GEO but already entered with WIFI");
                     }
                     break;
                 case Geofence.GEOFENCE_TRANSITION_EXIT:
-                    if(!stillInWifiZone(geofenceModel)) {
+                    if(!insideWifi(geofenceModel)) {
                         notifyOnEvent(geofenceModel, transitionType);
                     } else {
                         notifyOnMessage(geofenceModel, "You are leaving GEO but still in wifi zone");
@@ -174,15 +162,33 @@ public class BusinessLogicController implements GeofenceController {
         }
     };
 
+    private boolean insideGeo(GeofenceModel m) {
+        Integer transition = geoEventMap.get(m.getId());
+        if(transition == null) return false;
+        if(transition == Geofence.GEOFENCE_TRANSITION_ENTER || transition == Geofence.GEOFENCE_TRANSITION_DWELL) {
+            return true;
+        }
+        return false;
+    }
 
+    private boolean insideWifi(GeofenceModel m) {
+        Integer transition = wifiEventMap.get(m.getId());
+        if(transition == null) return false;
+        if(transition == WIFI_TRANSITION_ENTER) {
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public void addGeoFence(GeofenceModel geofenceModel) {
+        wifiController.addGeoFence(geofenceModel);
         geoController.addGeoFence(geofenceModel);
     }
 
     @Override
     public void removeGeoFence(GeofenceModel geofenceModel) {
+        wifiController.removeGeoFence(geofenceModel);
         geoController.removeGeoFence(geofenceModel);
     }
     
@@ -194,7 +200,7 @@ public class BusinessLogicController implements GeofenceController {
     public void onDestroy() {
         geofenceDataSource.removeAllGeofences();
         geoController.onDestroy();
-        context.unregisterReceiver(networkStateReceiver);
+        wifiController.onDestroy();
         context = null;
     }
 

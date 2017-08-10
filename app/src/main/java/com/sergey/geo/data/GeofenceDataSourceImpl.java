@@ -1,6 +1,8 @@
-package com.sergey.geo;
+package com.sergey.geo.data;
 
 import android.util.Log;
+
+import com.sergey.geo.model.GeofenceModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,17 +29,18 @@ public class GeofenceDataSourceImpl implements GeofenceDataSource {
     }
 
     @Override
-    public GeofenceModel getGeofenceByWifiNetworkName(String name) {
-        Log.d(TAG, "getGeofenceByWifiNetworkName finding name:" + name);
+    public List<GeofenceModel> getGeofencesByWifiNetworkName(String name) {
+        Log.d(TAG, "getGeofencesByWifiNetworkName finding name:" + name);
+        List<GeofenceModel> models = new ArrayList<>();
         for (String gid : geofenceCache.keySet()) {
             GeofenceModel m = geofenceCache.get(gid);
-            Log.d(TAG, "getGeofenceByWifiNetworkName:" + m.getWifiNetwork());
+            Log.d(TAG, "getGeofencesByWifiNetworkName:" + m.getWifiNetwork());
             if(m.getWifiNetwork().equals(name)) {
-                Log.d(TAG, "getGeofenceByWifiNetworkName SUCCESS" + m.getWifiNetwork());
-                return m;
+                Log.d(TAG, "getGeofencesByWifiNetworkName SUCCESS" + m.getWifiNetwork());
+                models.add(m);
             }
         }
-        return null;
+        return models;
     }
 
     @Override

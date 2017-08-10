@@ -6,6 +6,8 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 
+import com.sergey.geo.model.Network;
+
 /**
  * Created by sober on 31.07.2017.
  */

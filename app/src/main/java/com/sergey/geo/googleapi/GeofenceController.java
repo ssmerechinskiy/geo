@@ -1,6 +1,8 @@
-package com.sergey.geo;
+package com.sergey.geo.googleapi;
 
 import android.content.Intent;
+
+import com.sergey.geo.model.GeofenceModel;
 
 /**
  * Created by user on 30.07.2017.

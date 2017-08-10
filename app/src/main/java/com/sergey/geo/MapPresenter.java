@@ -1,7 +1,5 @@
 package com.sergey.geo;
 
-import android.*;
-import android.Manifest;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -15,7 +13,7 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.LocalBroadcastManager;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
@@ -40,9 +38,13 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.sergey.geo.data.GeofenceDataSource;
+import com.sergey.geo.data.GeofenceDataSourceImpl;
+import com.sergey.geo.googleapi.GeofenceEventListener;
+import com.sergey.geo.model.GeofenceModel;
+import com.sergey.geo.model.Network;
+import com.sergey.geo.wifi.WifiControllerImpl;
 
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -88,7 +90,7 @@ public class MapPresenter {
 
     private volatile Network currentNetwork;
 
-    private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
+//    private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
 
     private final String wifiStatusTitle;
 
@@ -101,12 +103,12 @@ public class MapPresenter {
         geofenceDataSource = GeofenceDataSourceImpl.getInstance();
         currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
-        activity.registerReceiver(networkStateReceiver, BusinessLogicController.intentFilter);
+        activity.registerReceiver(networkStateReceiver, WifiControllerImpl.intentFilter);
         wifiStatusTitle = activity.getString(R.string.wifi_status_title);
     }
 
     public void onStart() {
-        activity.showTipsDialog();
+//        activity.showTipsDialog();
     }
 
     public void onResume() {
@@ -144,13 +146,21 @@ public class MapPresenter {
 
         try {
             mGoogleMap.setMyLocationEnabled(true);
-            if(currentLocation != null) activity.animateCameraToLocation(currentLocation, currentZoom);
+            if(currentLocation != null) activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
             currentNetwork = NetworkUtil.updateNetworkInfo();
             showNetworkStatusSnackbar();
 
         } catch (SecurityException e) {
             activity.showMessage("Permissions not granted");
             requestPermissions();
+        }
+    }
+
+    private void updateGestureEnabled() {
+        if(currentNetwork != null && TextUtils.isEmpty(currentNetwork.getName())) {
+            mGoogleMap.getUiSettings().setScrollGesturesEnabled(false);
+        } else {
+            mGoogleMap.getUiSettings().setScrollGesturesEnabled(true);
         }
     }
 
@@ -192,10 +202,10 @@ public class MapPresenter {
             super.onLocationResult(locationResult);
             currentLocation = locationResult.getLastLocation();
             if (isCameraAutoMovingMode && currentLocation != null) {
-                currentZoom = mGoogleMap.getCameraPosition().zoom;
-                activity.animateCameraToLocation(currentLocation, currentZoom);
+//                currentZoom = mGoogleMap.getCameraPosition().zoom;
+                activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
             }
-            displayCurrentLocation();
+//            displayCurrentLocation();
         }
     };
 
@@ -214,7 +224,7 @@ public class MapPresenter {
                 @Override
                 public void run() {
                     String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType);
-                    String m2 = " GEOFENCE:" + geofenceModel.getName() + "(id=" + geofenceModel.getId() + ")";
+                    String m2 = " GEOFENCE:" + geofenceModel.getName();
 //                    activity.showMessage(m1 + m2);
                     activity.showSnackbar(m1, m2, new View.OnClickListener() {
                         @Override
@@ -318,6 +328,11 @@ public class MapPresenter {
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
 //                geoController.addGeoFence(geoModel);
                 businessLogicController.addGeoFence(geoModel);
+            }
+
+            @Override
+            public void onCreateGeofenceError(String message) {
+                activity.showMessage(message);
             }
 
             @Override

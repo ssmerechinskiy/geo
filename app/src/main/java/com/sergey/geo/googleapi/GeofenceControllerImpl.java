@@ -1,14 +1,11 @@
-package com.sergey.geo;
+package com.sergey.geo.googleapi;
 
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -19,6 +16,10 @@ import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
+import com.sergey.geo.GeoApp;
+import com.sergey.geo.data.GeofenceDataSource;
+import com.sergey.geo.data.GeofenceDataSourceImpl;
+import com.sergey.geo.model.GeofenceModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -129,7 +130,6 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
                     isAddingGeofencesInProgress = false;
                 }
             });
-
         }
     };
 

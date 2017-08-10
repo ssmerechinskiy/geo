@@ -1,6 +1,7 @@
 package com.sergey.geo;
 
 import com.google.android.gms.location.Geofence;
+import com.sergey.geo.model.GeofenceModel;
 
 /**
  * Created by user on 30.07.2017.

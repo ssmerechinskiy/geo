@@ -1,4 +1,4 @@
-package com.sergey.geo;
+package com.sergey.geo.model;
 
 import com.google.android.gms.location.Geofence;
 
@@ -8,7 +8,7 @@ import com.google.android.gms.location.Geofence;
 
 public class GeofenceModel {
 
-    public final static double USE_WIFI_MIN_RADIUS = 15.0d;
+    public final static double USE_WIFI_MIN_RADIUS = 20.0d;
     public final static double USE_WITHOUT_WIFI_MIN_RADIUS = 100.0d;
 
     private static final int EXPIRATION_TIME = 600000;
