@@ -9,7 +9,9 @@ import java.util.List;
  */
 
 public interface GeofenceEventListener {
-    void onEvent(GeofenceModel geofenceModel, int transitionType);
+    int EVENT_TYPE_DETECTOR_GEO_API = 1;
+    int EVENT_TYPE_DETECTOR_WIFI = 2;
+    void onEvent(GeofenceModel geofenceModel, int transitionType, int eventTypeDetector);
     void onMessage(GeofenceModel geofenceModel, String message);
     void onGeofenceAddedSuccess(List<String> ids);
     void onGeofenceAddedFailed(List<String> ids);

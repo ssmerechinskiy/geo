@@ -1,6 +1,7 @@
 package com.sergey.geo;
 
 import com.google.android.gms.location.Geofence;
+import com.sergey.geo.googleapi.GeofenceEventListener;
 import com.sergey.geo.model.GeofenceModel;
 
 /**
@@ -17,6 +18,17 @@ public class GeofenceUtil {
                 return "EXIT";
             case Geofence.GEOFENCE_TRANSITION_DWELL :
                 return "INSIDE";
+            default:
+                return "Unknown";
+        }
+    }
+
+    public static String getEventTypeDetectorName(int eventTypeDetector) {
+        switch (eventTypeDetector) {
+            case GeofenceEventListener.EVENT_TYPE_DETECTOR_GEO_API :
+                return "GEO API";
+            case GeofenceEventListener.EVENT_TYPE_DETECTOR_WIFI :
+                return "WIFI API";
             default:
                 return "Unknown";
         }

@@ -205,11 +205,11 @@ public class MapPresenter {
 
     private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
         @Override
-        public void onEvent(final GeofenceModel geofenceModel, final int transitionType) {
+        public void onEvent(final GeofenceModel geofenceModel, final int transitionType, final int eventTypeDetector) {
             mainThreadHandler.post(new Runnable() {
                 @Override
                 public void run() {
-                    String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType);
+                    String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType) + " with " + GeofenceUtil.getEventTypeDetectorName(eventTypeDetector);
                     String m2 = " GEOFENCE:" + geofenceModel.getName();
                     activity.showSnackbar(m1, m2, new View.OnClickListener() {
                         @Override

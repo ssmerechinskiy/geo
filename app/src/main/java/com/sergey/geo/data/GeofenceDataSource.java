@@ -14,6 +14,7 @@ public interface GeofenceDataSource {
     List<GeofenceModel> getGeofences();
     List<String> getGeofencesIds();
     void saveGeofences(List<GeofenceModel> models);
+    void saveGeofence(GeofenceModel model);
     void removeGeofence(String id);
     void removeGeofences(List<String> ids);
     void removeAllGeofences();

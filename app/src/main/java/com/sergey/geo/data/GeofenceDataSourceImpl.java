@@ -62,6 +62,11 @@ public class GeofenceDataSourceImpl implements GeofenceDataSource {
     }
 
     @Override
+    public void saveGeofence(GeofenceModel model) {
+        geofenceCache.put(model.getId(), model);
+    }
+
+    @Override
     public void removeGeofence(String id) {
         geofenceCache.remove(id);
     }

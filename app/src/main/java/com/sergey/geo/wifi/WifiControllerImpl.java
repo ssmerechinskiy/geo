@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 
 public class WifiControllerImpl implements WifiController{
     private final static String TAG = WifiControllerImpl.class.getSimpleName();
-    private static WifiControllerImpl instance = new WifiControllerImpl();
+    private static final WifiControllerImpl instance = new WifiControllerImpl();
 
     public final static IntentFilter intentFilter = new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE");
 
@@ -33,7 +33,9 @@ public class WifiControllerImpl implements WifiController{
     private List<WifiEventListener> listeners = new ArrayList<>();
     private ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    private WifiControllerImpl() {}
+    private WifiControllerImpl() {
+        executor = Executors.newSingleThreadExecutor();
+    }
 
     public static WifiControllerImpl getInstance() {
         return instance;
@@ -48,6 +50,7 @@ public class WifiControllerImpl implements WifiController{
     private BroadcastReceiver networkStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "onReceive network state");
             Network previousNetwork = currentNetwork;
             if(previousNetwork != null && previousNetwork.getName() != null) {
                 /** FOR PREVIOUS WIFI WIFI_TRANSITION_EXIT*/
@@ -69,24 +72,20 @@ public class WifiControllerImpl implements WifiController{
 
     @Override
     public void addGeoFence(final GeofenceModel geofenceModel) {
-//        if(geofenceModel.getWifiNetwork() != null) {
-//            if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
-//                List<GeofenceModel> list = new ArrayList<>();
-//                list.add(geofenceModel);
-//                notifyOnEvent(list, WIFI_TRANSITION_ENTER);
-//            }
-//        }
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                if(geofenceModel.getWifiNetwork() != null && currentNetwork != null) {
-                    if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
-                        List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
-                        notifyOnEvent(list, WIFI_TRANSITION_ENTER);
+        synchronized (executor) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    Log.d(TAG, "adding geofence");
+                    if(geofenceModel.getWifiNetwork() != null && currentNetwork != null) {
+                        if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
+                            List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
+                            notifyOnEvent(list, WIFI_TRANSITION_ENTER);
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     @Override
@@ -115,12 +114,14 @@ public class WifiControllerImpl implements WifiController{
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "onDestroy");
         context.unregisterReceiver(networkStateReceiver);
         releaseExecutor();
         context = null;
     }
 
     private void releaseExecutor() {
+        Log.d(TAG, "releaseExecutor");
         executor.shutdown();
         executor.shutdownNow();
         executor = null;
