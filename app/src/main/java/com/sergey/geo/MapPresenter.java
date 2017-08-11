@@ -34,10 +34,8 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 import com.sergey.geo.data.GeofenceDataSource;
 import com.sergey.geo.data.GeofenceDataSourceImpl;
 import com.sergey.geo.googleapi.GeofenceEventListener;
@@ -77,7 +75,7 @@ public class MapPresenter {
     private boolean mapReady;
     private GoogleMap mGoogleMap;
     private Map<String, GeoFenceUIModel> uiGeoModels = new ConcurrentHashMap<>();
-//    private GeofenceController geoController;
+
     private BusinessLogicController businessLogicController;
     private GeofenceDataSource geofenceDataSource;
     private Handler mainThreadHandler = new Handler(Looper.getMainLooper());
@@ -90,14 +88,12 @@ public class MapPresenter {
 
     private volatile Network currentNetwork;
 
-//    private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
+    private float currentZoom = CURRENT_LOCATION_DEFAULT_ZOOM;
 
     private final String wifiStatusTitle;
 
     public MapPresenter(MapsActivity a) {
         activity = a;
-//        geoController = GeofenceControllerImpl.getInstance();
-//        geoController.registerListener(geofenceEventListener);
         businessLogicController = BusinessLogicController.getInstance();
         businessLogicController.registerListener(geofenceEventListener);
         geofenceDataSource = GeofenceDataSourceImpl.getInstance();
@@ -108,7 +104,12 @@ public class MapPresenter {
     }
 
     public void onStart() {
-//        activity.showTipsDialog();
+//        mainThreadHandler.postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                activity.showTipsDialog();
+//            }
+//        }, 5000);
     }
 
     public void onResume() {
@@ -133,8 +134,6 @@ public class MapPresenter {
     public void onDestroy() {
         mainThreadHandler.removeCallbacksAndMessages(null);
         activity.unregisterReceiver(networkStateReceiver);
-//        geoController.unregisterListener(geofenceEventListener);
-//        geoController.onDestroy();
         businessLogicController.unregisterListener(geofenceEventListener);
         businessLogicController.onDestroy();
         activity = null;
@@ -143,12 +142,11 @@ public class MapPresenter {
     public void onMapReady(GoogleMap googleMap) {
         mapReady = true;
         mGoogleMap = googleMap;
-
         try {
             mGoogleMap.setMyLocationEnabled(true);
             if(currentLocation != null) activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
             currentNetwork = NetworkUtil.updateNetworkInfo();
-            showNetworkStatusSnackbar();
+            showNetworkStatus();
 
         } catch (SecurityException e) {
             activity.showMessage("Permissions not granted");
@@ -156,28 +154,11 @@ public class MapPresenter {
         }
     }
 
-    private void updateGestureEnabled() {
-        if(currentNetwork != null && TextUtils.isEmpty(currentNetwork.getName())) {
-            mGoogleMap.getUiSettings().setScrollGesturesEnabled(false);
-        } else {
-            mGoogleMap.getUiSettings().setScrollGesturesEnabled(true);
-        }
-    }
-
-    private void showNetworkStatusSnackbar() {
+    private void showNetworkStatus() {
         if(currentNetwork != null && currentNetwork.getName() != null) {
-            activity.showSnackbar(wifiStatusTitle, currentNetwork.getName().toString(), new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-
-                }
-            });
+            activity.updateWifiStatus(currentNetwork.getName().toString());
         } else {
-            activity.showSnackbar(wifiStatusTitle, "Not connected", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                }
-            });
+            activity.updateWifiStatus("Not connected");
         }
     }
 
@@ -202,19 +183,24 @@ public class MapPresenter {
             super.onLocationResult(locationResult);
             currentLocation = locationResult.getLastLocation();
             if (isCameraAutoMovingMode && currentLocation != null) {
-//                currentZoom = mGoogleMap.getCameraPosition().zoom;
-                activity.animateCameraToLocation(currentLocation, CURRENT_LOCATION_DEFAULT_ZOOM);
+                activity.animateCameraToLocation(currentLocation, currentZoom);
+                mainThreadHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        currentZoom = mGoogleMap.getCameraPosition().zoom;
+                    }
+                }, 3000);
             }
-//            displayCurrentLocation();
+            displayCurrentLocation();
         }
     };
 
     private void displayCurrentLocation() {
-        if (currentLocation != null) {
-            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
-            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
-            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
-        }
+//        if (currentLocation != null) {
+//            if(currentLocationMarker != null) activity.removeMarker(currentLocationMarker);
+//            LatLng point = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
+//            currentLocationMarker = activity.displayMarker(point, "You", false, currentLocationBitmapDescriptor);
+//        }
     }
 
     private GeofenceEventListener geofenceEventListener = new GeofenceEventListener() {
@@ -225,7 +211,6 @@ public class MapPresenter {
                 public void run() {
                     String m1 = "YOU ARE " + GeofenceUtil.getTransionName(transitionType);
                     String m2 = " GEOFENCE:" + geofenceModel.getName();
-//                    activity.showMessage(m1 + m2);
                     activity.showSnackbar(m1, m2, new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
@@ -322,17 +307,29 @@ public class MapPresenter {
         }
         activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
-            public void onCreateGeofence(GeoFenceUIModel model) {
+            public void onCreateGeofence(GeoFenceUIModel model, double radius, String geofenceName, String networkName) {
                 if(model == null) return;
+                if(TextUtils.isEmpty(geofenceName)) {
+                    activity.showMessage("geofence name is null");
+                    return;
+                }
+                if(TextUtils.isEmpty(networkName)) {
+                    //for geofence without wifi radius can not be less 100
+                    if(!GeofenceModel.validateRadius(radius, false)) {
+                        activity.showMessage("radius less than:" + GeofenceModel.USE_WITHOUT_WIFI_MIN_RADIUS);
+                        return;
+                    }
+                } else {
+                    networkName = GeofenceUtil.addQuotes(networkName);
+                }
+                model.radius = radius;
+                model.geofenceName = geofenceName;
+                model.networkName = networkName;
+
+//                activity.showMessage("create with network:" + model.networkName);
                 activity.showProgress();
                 GeofenceModel geoModel = GeofenceUtil.createGeofenceModelFromUIModel(uiModel);
-//                geoController.addGeoFence(geoModel);
                 businessLogicController.addGeoFence(geoModel);
-            }
-
-            @Override
-            public void onCreateGeofenceError(String message) {
-                activity.showMessage(message);
             }
 
             @Override
@@ -341,7 +338,6 @@ public class MapPresenter {
                 GeofenceModel geoModel = geofenceDataSource.getGeofenceById(uiModel.marker.getId());
                 if(geoModel != null) {
                     activity.showProgress();
-//                    geoController.removeGeoFence(geoModel);
                     businessLogicController.removeGeoFence(geoModel);
                 } else {
                     activity.removeMarker(uiModel.marker);
@@ -406,13 +402,15 @@ public class MapPresenter {
             Log.d(TAG, "stopLocationUpdates: updates never requested, no-op.");
             return;
         }
-        mFusedLocationClient.removeLocationUpdates(mLocationCallback)
-                .addOnCompleteListener(activity, new OnCompleteListener<Void>() {
-                    @Override
-                    public void onComplete(@NonNull Task<Void> task) {
-                        mRequestingLocationUpdates = false;
-                    }
-                });
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+        mRequestingLocationUpdates = false;
+        //something strange behavior on test device(Xiaomi note 3 pro Android 5.1) callback is not trigerred
+//                .addOnCompleteListener(activity, new OnCompleteListener<Void>() {
+//                    @Override
+//                    public void onComplete(@NonNull Task<Void> task) {
+//                        mRequestingLocationUpdates = false;
+//                    }
+//                });
     }
 
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -487,7 +485,7 @@ public class MapPresenter {
         @Override
         public void onReceive(Context context, Intent intent) {
             currentNetwork = NetworkUtil.updateNetworkInfo();
-            showNetworkStatusSnackbar();
+            showNetworkStatus();
         }
     };
 

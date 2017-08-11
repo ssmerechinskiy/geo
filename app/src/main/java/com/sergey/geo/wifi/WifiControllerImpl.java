@@ -69,24 +69,24 @@ public class WifiControllerImpl implements WifiController{
 
     @Override
     public void addGeoFence(final GeofenceModel geofenceModel) {
-        if(geofenceModel.getWifiNetwork() != null) {
-            if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
-                List<GeofenceModel> list = new ArrayList<>();
-                list.add(geofenceModel);
-                notifyOnEvent(list, WIFI_TRANSITION_ENTER);
-            }
-        }
-//        executor.execute(new Runnable() {
-//            @Override
-//            public void run() {
-//                if(geofenceModel.getWifiNetwork() != null) {
-//                    if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
-//                        List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
-//                        notifyOnEvent(list, WIFI_TRANSITION_ENTER);
-//                    }
-//                }
+//        if(geofenceModel.getWifiNetwork() != null) {
+//            if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
+//                List<GeofenceModel> list = new ArrayList<>();
+//                list.add(geofenceModel);
+//                notifyOnEvent(list, WIFI_TRANSITION_ENTER);
 //            }
-//        });
+//        }
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if(geofenceModel.getWifiNetwork() != null && currentNetwork != null) {
+                    if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
+                        List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
+                        notifyOnEvent(list, WIFI_TRANSITION_ENTER);
+                    }
+                }
+            }
+        });
     }
 
     @Override

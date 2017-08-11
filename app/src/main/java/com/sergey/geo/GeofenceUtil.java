@@ -34,4 +34,18 @@ public class GeofenceUtil {
         geoModel.setName(uiModel.geofenceName);
         return geoModel;
     }
+
+    public static String addQuotes(String s) {
+        if(s.startsWith("\"") && s.endsWith("\"")) {
+            return s;
+        } else {
+            if(!s.startsWith("\"")) {
+                s = "\"" + s;
+            }
+            if(!s.endsWith("\"")) {
+                s = s + "\"";
+            }
+            return s;
+        }
+    }
 }
