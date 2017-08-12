@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Looper;
 import android.util.Log;
 
 import com.sergey.geo.data.GeofenceDataSource;
@@ -34,7 +35,6 @@ public class WifiControllerImpl implements WifiController{
     private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private WifiControllerImpl() {
-        executor = Executors.newSingleThreadExecutor();
     }
 
     public static WifiControllerImpl getInstance() {
@@ -72,20 +72,18 @@ public class WifiControllerImpl implements WifiController{
 
     @Override
     public void addGeoFence(final GeofenceModel geofenceModel) {
-        synchronized (executor) {
-            executor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    Log.d(TAG, "adding geofence");
-                    if(geofenceModel.getWifiNetwork() != null && currentNetwork != null) {
-                        if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
-                            List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
-                            notifyOnEvent(list, WIFI_TRANSITION_ENTER);
-                        }
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "adding geofence");
+                if(geofenceModel.getWifiNetwork() != null && currentNetwork != null) {
+                    if(geofenceModel.getWifiNetwork().equals(currentNetwork.getName())) {
+                        List<GeofenceModel> list = geofenceDataSource.getGeofencesByWifiNetworkName(currentNetwork.getName());
+                        notifyOnEvent(list, WIFI_TRANSITION_ENTER);
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     @Override

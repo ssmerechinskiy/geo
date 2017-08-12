@@ -225,6 +225,7 @@ public class BusinessLogicController implements GeofenceController {
     }
 
     public void onDestroy() {
+        Log.d(TAG, "onDestroy");
         executorService.shutdown();
         executorService.shutdownNow();
         geofenceDataSource.removeAllGeofences();

@@ -112,21 +112,19 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
     private ResultCallback<Status> addGeofenceCallback = new ResultCallback<Status>() {
         @Override
         public void onResult(@NonNull final Status status) {
-            synchronized (resultExecutor) {
-                resultExecutor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        List<String> list = new ArrayList<>(addingInProcessGeoIds.keySet());
-                        if (status.isSuccess()) {
-                            notifyOnGeofenceAddedSuccess(list);
-                        } else {
-                            notifyOnGeofenceAddedFailed(list);
-                        }
-                        addingInProcessGeoIds.clear();
-                        isAddingGeofencesInProgress = false;
+            resultExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    List<String> list = new ArrayList<>(addingInProcessGeoIds.keySet());
+                    if (status.isSuccess()) {
+                        notifyOnGeofenceAddedSuccess(list);
+                    } else {
+                        notifyOnGeofenceAddedFailed(list);
                     }
-                });
-            }
+                    addingInProcessGeoIds.clear();
+                    isAddingGeofencesInProgress = false;
+                }
+            });
         }
     };
 
@@ -168,44 +166,41 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     private ResultCallback<Status> deleteGeofenceCallback = new ResultCallback<Status>() {
         @Override
-        public void onResult(@NonNull final Status status) {
-            synchronized (resultExecutor) {
-                resultExecutor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        List<String> list = new ArrayList<>(deletingInProcessGeoIds.keySet());
-                        if (status.isSuccess()) {
-                            notifyOnGeofenceDeletedSuccess(list);
-                        } else {
-                            notifyOnGeofenceDeletedFailed(list);
-                        }
-                        deletingInProcessGeoIds.clear();
-                        isDeletingGeofencesInProgress = false;
+        public void
+        onResult(@NonNull final Status status) {
+            resultExecutor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    List<String> list = new ArrayList<>(deletingInProcessGeoIds.keySet());
+                    if (status.isSuccess()) {
+                        notifyOnGeofenceDeletedSuccess(list);
+                    } else {
+                        notifyOnGeofenceDeletedFailed(list);
                     }
-                });
-            }
+                    deletingInProcessGeoIds.clear();
+                    isDeletingGeofencesInProgress = false;
+                }
+            });
         }
     };
 
     @Override
     public void onGeofenceEvent(final Intent intent) {
-        synchronized (resultExecutor) {
-            resultExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
-                    if (geofencingEvent.hasError()) {
-                        Log.e(TAG, "Location Services error: " + geofencingEvent.getErrorCode());
-                        notifyOnMessage(null, "Location Services error: " + geofencingEvent.getErrorCode());
-                        return;
-                    }
-                    int transitionType = geofencingEvent.getGeofenceTransition();
-                    List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
-                    handleResult(triggeredGeofences, transitionType);
-//                notifyOnMessage(null, "triggered transition:" + GeofenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
+        resultExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                GeofencingEvent geofencingEvent = GeofencingEvent.fromIntent(intent);
+                if (geofencingEvent.hasError()) {
+                    Log.e(TAG, "Location Services error: " + geofencingEvent.getErrorCode());
+                    notifyOnMessage(null, "Location Services error: " + geofencingEvent.getErrorCode());
+                    return;
                 }
-            });
-        }
+                int transitionType = geofencingEvent.getGeofenceTransition();
+                List<Geofence> triggeredGeofences = geofencingEvent.getTriggeringGeofences();
+                handleResult(triggeredGeofences, transitionType);
+//                notifyOnMessage(null, "triggered transition:" + GeofenceUtil.getTransionName(transitionType) + " size:" + triggeredGeofences.size());
+            }
+        });
     }
 
     private void handleResult(List<Geofence> triggeredGeofences, int transitionType) {
@@ -304,16 +299,18 @@ public class GeofenceControllerImpl implements GeofenceController, GoogleApiClie
 
     @Override
     public void onDestroy() {
+        releaseExecutors();
+        addingInProcessGeoIds.clear();
+        deletingInProcessGeoIds.clear();
+        deleteAllGeofencesFromService();
+        context = null;
+    }
+
+    private void releaseExecutors() {
         shutdownExecutor(requestExecutor);
         requestExecutor = null;
         shutdownExecutor(resultExecutor);
         resultExecutor = null;
-
-        addingInProcessGeoIds.clear();
-        deletingInProcessGeoIds.clear();
-        deleteAllGeofencesFromService();
-
-        context = null;
     }
 
     private void shutdownExecutor(ExecutorService service) {

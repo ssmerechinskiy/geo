@@ -83,7 +83,7 @@ public class MapPresenter {
     private boolean isCameraAutoMovingMode = true;
 
 
-    private BitmapDescriptor currentLocationBitmapDescriptor;
+//    private BitmapDescriptor currentLocationBitmapDescriptor;
     private Marker currentLocationMarker;
 
     private volatile Network currentNetwork;
@@ -97,7 +97,7 @@ public class MapPresenter {
         businessLogicController = BusinessLogicController.getInstance();
         businessLogicController.registerListener(geofenceEventListener);
         geofenceDataSource = GeofenceDataSourceImpl.getInstance();
-        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
+//        currentLocationBitmapDescriptor = BitmapDescriptorFactory.fromResource(R.drawable.ic_smiley);
         prepareLocationServices();
         activity.registerReceiver(networkStateReceiver, WifiControllerImpl.intentFilter);
         wifiStatusTitle = activity.getString(R.string.wifi_status_title);
@@ -132,6 +132,7 @@ public class MapPresenter {
     }
 
     public void onDestroy() {
+        Log.d(TAG, "onDestroy");
         mainThreadHandler.removeCallbacksAndMessages(null);
         activity.unregisterReceiver(networkStateReceiver);
         businessLogicController.unregisterListener(geofenceEventListener);
@@ -305,7 +306,7 @@ public class MapPresenter {
         if(currentNetwork != null && currentNetwork.getName() != null && uiModel != null) {
             uiModel.networkName = currentNetwork.getName();
         }
-        activity.showPopupMenuForMarker(uiModel, new MapsActivity.PopupMenuListener() {
+        activity.showPopupDialog(uiModel, new MapsActivity.PopupMenuListener() {
             @Override
             public void onCreateGeofence(GeoFenceUIModel model, double radius, String geofenceName, String networkName) {
                 if(model == null) return;
